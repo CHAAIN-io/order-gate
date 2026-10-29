@@ -1,0 +1,9 @@
+# Exact versions so the demo runs the same on every machine.
+# Direct dependencies: pytest (tests), PyYAML (config files).
+# The rest are pulled in by pytest.
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+Pygments==2.21.0
+pytest==9.2.0
+PyYAML==6.0.3
