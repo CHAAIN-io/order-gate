@@ -68,8 +68,14 @@ class AnthropicProvider(LLMProvider):
             raise LLMError("rate limited") from e
         except anthropic.APIStatusError as e:
             raise LLMError(f"API error {e.status_code}") from e
-        except anthropic.AnthropicError as e:  # e.g. no credentials configured
+        except anthropic.AnthropicError as e:
             raise LLMError(f"client error: {type(e).__name__}") from e
+        except TypeError as e:
+            # The SDK reports missing credentials (e.g. an empty ANTHROPIC_API_KEY)
+            # as a TypeError. Any other TypeError is our bug and should surface.
+            if "authentication method" not in str(e):
+                raise
+            raise LLMError("no credentials configured") from e
 
         if response.stop_reason == "refusal":
             raise LLMError("the model declined to read this note")

@@ -206,10 +206,17 @@ def test_no_fallback_for_models_without_it():
     (reply({}, stop_reason="max_tokens"), None, "cut off"),
     (SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text="not json")]), None, "valid JSON"),
     (None, anthropic.APIConnectionError(request=None), "couldn't connect"),
+    (None, TypeError('"Could not resolve authentication method. Expected one of api_key, ..."'), "no credentials"),
 ])
 def test_every_failure_becomes_one_error_type(response, error, message):
     provider = AnthropicProvider("claude-opus-5-5", client=StubClient(response, error))
     with pytest.raises(LLMError, match=message):
+        provider.complete_json("s", "u", SCHEMA)
+
+
+def test_a_type_error_that_isnt_about_credentials_is_still_a_bug():
+    provider = AnthropicProvider("claude-opus-5-5", client=StubClient(error=TypeError("unexpected keyword 'x'")))
+    with pytest.raises(TypeError):
         provider.complete_json("s", "u", SCHEMA)
 
 
