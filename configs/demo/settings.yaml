@@ -1,5 +1,5 @@
 # Runtime settings for the demo client profile.
-# Poll interval, lookback and per-run cap are added in Stage 1.5.
+# Gate rules live in rules.yaml (Stage 2.1).
 
 warehouse:
   # Codes the warehouse issues to this client. Placeholders in the demo.
@@ -18,3 +18,14 @@ warehouse:
     min_window_minutes: 120    # warehouse needs at least 2 hours
     instructions_max_chars: 120
     booking_required: false    # true puts every order on hold at the warehouse
+
+scheduler:
+  timezone: Europe/London
+  # Polling windows in local time, start and end included. Where windows
+  # overlap, the first listed wins. Outside every window, no polling.
+  windows:
+    - {start: "11:00", end: "13:30", every_minutes: 5}    # run-up to the 12:30 cut-off
+    - {start: "08:00", end: "20:00", every_minutes: 15}
+  lookback_hours: 48           # sales changed in this window are looked at
+  max_invoice_age_days: 7      # older invoices are ignored, even if changed recently
+  per_run_cap: 10              # applied AFTER dedup, so sent orders can't use it up
