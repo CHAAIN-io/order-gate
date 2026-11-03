@@ -60,6 +60,11 @@ class Event:
     at: datetime
     details: dict | None
 
+    @property
+    def is_note(self) -> bool:
+        """An annotation rather than a state change."""
+        return self.from_state is self.to_state
+
 
 def normalise_so(so_number: str) -> str:
     return so_number.strip().upper()
@@ -86,9 +91,21 @@ class Ledger(ABC):
     ) -> Entry:
         """Change state and log why, in one transaction: both happen or neither does."""
 
-    def claim(self, so_number: str, reason: str, fingerprint: str | None = None) -> Entry:
+    def claim(
+        self, so_number: str, reason: str, fingerprint: str | None = None, actor: str = "system",
+    ) -> Entry:
         """Write PENDING before sending. If this raises, the caller must not send."""
-        return self.move(so_number, State.PENDING, reason, fingerprint=fingerprint)
+        return self.move(so_number, State.PENDING, reason, actor, fingerprint=fingerprint)
+
+    @abstractmethod
+    def annotate(
+        self, so_number: str, reason: str, actor: str = "system", *,
+        details: dict | None = None, fingerprint: str | None = None,
+    ) -> Entry:
+        """Log something about a row without changing its state: an alert
+        sent, a lookup that found nothing, a sale that changed while held.
+        The row's state, reason and updated_at stay as they are; a new
+        fingerprint, if given, replaces the old one."""
 
     @abstractmethod
     def record_manual(self, so_number: str, guid: str | None, actor: str, reason: str) -> Entry:

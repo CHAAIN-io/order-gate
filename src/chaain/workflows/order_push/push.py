@@ -87,7 +87,12 @@ def fingerprint(sale: Sale) -> str:
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()[:16]
 
 
-def push(sale: Sale, ledger: Ledger, warehouse: Warehouse) -> PushResult:
+def push(
+    sale: Sale, ledger: Ledger, warehouse: Warehouse,
+    actor: str = "system", reason: str = "claimed for sending",
+) -> PushResult:
+    """`actor` and `reason` record who sent it and why: the system for an
+    AUTO, a named person for an approved hold."""
     so = sale.so_number
     order = warehouse.prepare(sale)
     if order.problems:
@@ -95,7 +100,7 @@ def push(sale: Sale, ledger: Ledger, warehouse: Warehouse) -> PushResult:
         return PushResult(so, False, None, None, False, False, "not sent: " + " ".join(order.problems))
 
     try:
-        ledger.claim(so, "claimed for sending", fingerprint=fingerprint(sale))
+        ledger.claim(so, reason, fingerprint=fingerprint(sale), actor=actor)
     except Exception as e:  # no claim, no send
         return PushResult(so, False, None, None, False, False, f"claim failed, not sent: {e}")
 

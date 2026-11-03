@@ -136,6 +136,19 @@ class SqliteLedger(Ledger):
             self._insert_event(row["id"], current, to, reason, actor, now, details)
         return self.find(so_number=so)
 
+    def annotate(self, so_number, reason, actor="system", *, details=None, fingerprint=None):
+        _require_reason(reason)
+        so = normalise_so(so_number)
+        with self._transaction():
+            row = self._conn.execute("SELECT * FROM entries WHERE so_number = ?", (so,)).fetchone()
+            if row is None:
+                raise NotFound(so)
+            if fingerprint is not None:
+                self._conn.execute("UPDATE entries SET fingerprint = ? WHERE id = ?", (fingerprint, row["id"]))
+            state = State(row["state"])
+            self._insert_event(row["id"], state, state, reason, actor, self._clock(), details)
+        return self.find(so_number=so)
+
     def _insert(self, so_number, guid, customer_id, state, source, actor, reason):
         _require_reason(reason)
         so, guid = normalise_so(so_number), normalise_guid(guid)

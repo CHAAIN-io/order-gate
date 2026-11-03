@@ -41,3 +41,19 @@ llm:
   timeout_seconds: 30
   refusal_fallback: true              # re-run server-side if the model declines
   retry_pause_seconds: 2              # one retry after this pause, then HOLD
+
+queue:
+  # Customers are told 12:30; the warehouse really accepts until 13:00. The
+  # queue counts down to 12:30 and, between the two, says the warehouse
+  # still accepts, so the team can choose whether to push one through late.
+  customer_cutoff: "12:30"
+  warehouse_cutoff: "13:00"
+
+resolver:
+  # Runs every N minutes, all day, every day, apart from the polling windows,
+  # so a stuck order is found even when no new orders arrive (the live
+  # system's stale check only ran when there were recent orders).
+  every_minutes: 15
+  stale_pending_minutes: 30   # claimed this long ago with no outcome: ask
+  # Alerts go once per item. Future (Stage 3.1 D4, option C): remind if an
+  # item is still unanswered after a few hours.

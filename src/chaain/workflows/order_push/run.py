@@ -55,6 +55,12 @@ def run_once(
 ) -> RunReport:
     report = RunReport(at=now)
     sales = stock.list_sales_updated_since(now - timedelta(hours=settings.lookback_hours))
+    # A person may clear a CHECK for retry days later, by which time the sale
+    # has left the lookback window. Fetch those directly so they still go.
+    in_window = {s.id.strip().lower() for s in sales}
+    for entry in ledger.in_state(State.RETRY):
+        if entry.guid and entry.guid not in in_window and (sale := stock.get_sale(entry.guid)):
+            sales.append(sale)
     report.seen = len(sales)
 
     # 1. Dedup first: drop anything the ledger says is handled.
@@ -130,16 +136,24 @@ def _act(sale: Sale, decision: Decision, ledger: Ledger, warehouse: Warehouse, r
         ledger.move(so, State.SKIPPED, decision.summary, final=decision.final)
         report.note(so, "skipped", decision.summary)
     elif decision.route is Route.HOLD:
-        ledger.move(so, State.HELD, decision.summary)
+        _hold(sale, decision.reasons, ledger)
         report.note(so, "held", decision.summary)
     elif problems := warehouse.prepare(sale).problems:
         # The warehouse would refuse it, so a person fixes it at source first.
-        why = " ".join(problems)
-        ledger.move(so, State.HELD, why)
-        report.note(so, "held", why)
+        _hold(sale, problems, ledger)
+        report.note(so, "held", " ".join(problems))
     else:
         result = push(sale, ledger, warehouse)
         action = result.state.value.lower() if result.state else "not sent"
         report.note(so, action, result.reason)
         if result.stop_run:
             report.stopped = result.reason
+
+
+def _hold(sale: Sale, reasons, ledger: Ledger) -> None:
+    """Hold with each reason kept separately for the team queue, and the
+    sale's fingerprint, so an approval can tell if it changed since."""
+    ledger.move(
+        sale.so_number, State.HELD, "; ".join(reasons),
+        fingerprint=fingerprint(sale), details={"reasons": list(reasons)},
+    )
