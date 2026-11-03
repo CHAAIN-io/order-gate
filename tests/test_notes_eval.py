@@ -11,7 +11,7 @@ from chaain.llm.fake import FakeProvider
 from chaain.workflows.order_push.notes_eval import (
     CASES, Case, collect, latest, load_cases, reaches_person, report, save, score,
 )
-from chaain.workflows.order_push.notes_reader import FLAGS, NotesReader
+from chaain.workflows.order_push.notes_reader import FLAGS, PROMPTS, NotesReader
 
 
 def case(id, must=(), may=(), path="order"):
@@ -33,11 +33,12 @@ def results(*answers, runs=1):
 
 # ---------- the eval set ----------
 
-def test_the_eval_set_loads_and_has_twenty_cases():
+def test_the_eval_set_loads_and_has_twenty_six_cases():
     cases = load_cases(CASES)
-    assert len(cases) == 20
-    assert any(c.path == "standing" for c in cases)
-    assert sum(1 for c in cases if not c.needs_person) >= 4  # enough false-positive tests
+    assert len(cases) == 26
+    assert {c.path for c in cases if c.needs_person} == {"order", "standing"}
+    assert {c.path for c in cases if not c.needs_person} == {"order", "standing"}
+    assert sum(1 for c in cases if not c.needs_person) >= 6  # enough false-positive tests
 
 
 def test_an_unknown_flag_in_the_eval_set_is_an_error(tmp_path):
@@ -143,11 +144,11 @@ def test_collect_frames_each_note_as_the_gate_does_and_records_failures():
     fake = FakeProvider(script=[well_formed(["needs_human"]), LLMError("down"), LLMError("down again")])
     out = collect(NotesReader(fake, sleep=lambda s: None), [order, standing], runs=1,
                   now=datetime(2026, 11, 3, 12, tzinfo=timezone.utc))
-    assert fake.calls[0][1].startswith("Order note (changed for this order):\nnote o")
+    assert fake.calls[0][1] == "Order note:\nnote o"
     assert fake.calls[1][1].startswith("Customer's standing comment")
     assert out["answers"][0]["flags"]["needs_human"]["raised"] is True
     assert out["answers"][1]["error"] == "down again"  # after the one retry
-    assert out["source"] == "notes-v1 via fake/fake-model"
+    assert out["source"] == "notes-v2 via fake/fake-model"
 
 
 def test_saved_results_can_be_rescored_without_the_api(tmp_path):
@@ -156,7 +157,7 @@ def test_saved_results_can_be_rescored_without_the_api(tmp_path):
     out = collect(NotesReader(fake, sleep=lambda s: None), [c], runs=3,
                   now=datetime(2026, 11, 3, 12, tzinfo=timezone.utc))
     path = save(out, tmp_path)
-    assert path.name == "20261103-120000-notes-v1-fake-model.json"
+    assert path.name == "20261103-120000-notes-v2-fake-model.json"
     assert latest(tmp_path) == path
     s = score(json.loads(path.read_text()), [c], 0.8)
     assert s.route_recall == 1 and s.answers == 3 and s.flips == []
@@ -178,3 +179,11 @@ def test_a_flat_sweep_suggests_keeping_the_current_threshold():
     out = results(answer(c, raised=["needs_human"]))
     text = report(score(out, [c], 0.8), out)
     assert "makes no difference" in text and "Lowest threshold" not in text
+
+
+def test_an_older_prompt_version_runs_with_its_own_framing():
+    fake = FakeProvider(answer=lambda text: well_formed())
+    out = collect(NotesReader(fake, sleep=lambda s: None, prompt_version="notes-v1"), [case("o")], runs=1)
+    assert fake.calls[0][1] == "Order note (changed for this order):\nnote o"
+    assert out["prompt_version"] == "notes-v1"
+    assert fake.calls[0][0] == (PROMPTS / "notes-v1.md").read_text()

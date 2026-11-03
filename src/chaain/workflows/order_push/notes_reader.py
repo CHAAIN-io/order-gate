@@ -24,11 +24,15 @@ from chaain.core.models import Sale
 from chaain.llm import LLMError, LLMProvider
 from chaain.workflows.order_push.gate import NoteFlag, NotesResult
 
-PROMPT_VERSION = "notes-v1"
-PROMPT = (Path(__file__).parent / "prompts" / f"{PROMPT_VERSION}.md").read_text()
-# How the text is framed for the model. The eval uses the same framing.
-ORDER_NOTE = "Order note (changed for this order):\n{}"
-STANDING_NOTE = "Customer's standing comment (copied onto every order):\n{}"
+PROMPTS = Path(__file__).parent / "prompts"
+PROMPT_VERSION = "notes-v2"  # the one the gate uses; older ones stay for the eval
+# How each version labels the text it sends. The label is part of the prompt:
+# v1's "changed for this order" was read as the customer asking for a one-off.
+_STANDING = "Customer's standing comment (copied onto every order):\n{}"
+FRAMING = {
+    "notes-v1": ("Order note (changed for this order):\n{}", _STANDING),
+    "notes-v2": ("Order note:\n{}", _STANDING),
+}
 FLAGS = ("invoice_only", "partial_send", "one_off_delivery_change", "time_in_instructions", "needs_human")
 
 SCHEMA = {
@@ -59,7 +63,7 @@ SCHEMA = {
 }
 
 
-def changed_text(sale: Sale) -> str:
+def changed_text(sale: Sale, order_label: str = FRAMING[PROMPT_VERSION][0]) -> str:
     """What's new on this order compared with the standing comment."""
     note, standing = sale.note.strip(), sale.standing_note.strip()
     if note == standing:
@@ -70,7 +74,7 @@ def changed_text(sale: Sale) -> str:
         added = note  # rewritten for this order: read all of it
     parts = []
     if added:
-        parts.append(ORDER_NOTE.format(added))
+        parts.append(order_label.format(added))
     if sale.memo.strip():
         parts.append(f"Order memo:\n{sale.memo.strip()}")
     return "\n\n".join(parts)
@@ -79,16 +83,21 @@ def changed_text(sale: Sale) -> str:
 class NotesReader:
     def __init__(
         self, provider: LLMProvider, retry_pause_seconds: float = 2,
-        sleep: Callable[[float], None] = time.sleep,
+        sleep: Callable[[float], None] = time.sleep, prompt_version: str = PROMPT_VERSION,
     ) -> None:
+        if prompt_version not in FRAMING:
+            raise ValueError(f"unknown prompt version {prompt_version!r}")
         self.provider = provider
+        self.prompt_version = prompt_version
+        self.prompt = (PROMPTS / f"{prompt_version}.md").read_text()
+        self.order_label, self.standing_label = FRAMING[prompt_version]
         self.retry_pause_seconds = retry_pause_seconds
         self.sleep = sleep
         self._standing_cache: dict[str, tuple[NoteFlag, ...]] = {}
 
     def read(self, sale: Sale) -> NotesResult:
         standing, standing_error = self._standing(sale.standing_note)
-        text = changed_text(sale)
+        text = changed_text(sale, self.order_label)
         if not text:
             return NotesResult(standing=standing, source=self.source(), standing_error=standing_error)
         try:
@@ -101,10 +110,10 @@ class NotesReader:
         """Read a standing comment once per process, keyed by its text and the prompt version."""
         if not note.strip():
             return (), None
-        key = hashlib.sha256(f"{PROMPT_VERSION}\n{note.strip()}".encode()).hexdigest()
+        key = hashlib.sha256(f"{self.prompt_version}\n{note.strip()}".encode()).hexdigest()
         if key not in self._standing_cache:
             try:
-                flags = self.ask(STANDING_NOTE.format(note.strip()))
+                flags = self.ask(self.frame(note, standing=True))
             except LLMError as e:
                 return (), str(e)  # not cached: try again on the next order
             self._standing_cache[key] = tuple(f for f in flags if f.raised)
@@ -113,13 +122,17 @@ class NotesReader:
     def ask(self, text: str) -> tuple[NoteFlag, ...]:
         """One try, one retry after a pause. Malformed answers count as failures."""
         try:
-            return _parse(self.provider.complete_json(PROMPT, text, SCHEMA))
+            return _parse(self.provider.complete_json(self.prompt, text, SCHEMA))
         except LLMError:
             self.sleep(self.retry_pause_seconds)
-            return _parse(self.provider.complete_json(PROMPT, text, SCHEMA))
+            return _parse(self.provider.complete_json(self.prompt, text, SCHEMA))
+
+    def frame(self, text: str, standing: bool = False) -> str:
+        """Label text the way this prompt version expects."""
+        return (self.standing_label if standing else self.order_label).format(text.strip())
 
     def source(self) -> str:
-        return f"{PROMPT_VERSION} via {self.provider.name}/{self.provider.model}"
+        return f"{self.prompt_version} via {self.provider.name}/{self.provider.model}"
 
 
 def _parse(answer: dict) -> tuple[NoteFlag, ...]:
@@ -154,7 +167,7 @@ def main(argv: list[str] | None = None) -> None:
     llm = load_settings()["llm"]
     notes = NotesReader(provider_from_config(llm), llm.get("retry_pause_seconds", 2))
     try:
-        flags = notes.ask(ORDER_NOTE.format(text))
+        flags = notes.ask(notes.frame(text))
     except LLMError as e:
         sys.exit(f"Notes reader unavailable: {e}")
     print(f"Read by {notes.source()}")

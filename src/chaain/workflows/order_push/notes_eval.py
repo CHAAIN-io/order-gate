@@ -30,7 +30,7 @@ import yaml
 
 from chaain.llm import LLMError
 from chaain.workflows.order_push.notes_reader import (
-    FLAGS, ORDER_NOTE, PROMPT_VERSION, STANDING_NOTE, NotesReader,
+    FLAGS, FRAMING, PROMPT_VERSION, NotesReader,
 )
 
 EVALS = Path(__file__).resolve().parents[4] / "evals" / "notes"
@@ -87,7 +87,7 @@ def collect(reader: NotesReader, cases: list[Case], runs: int, now: datetime | N
     answers = []
     for run in range(1, runs + 1):
         for case in cases:
-            text = (ORDER_NOTE if case.path == "order" else STANDING_NOTE).format(case.note.strip())
+            text = reader.frame(case.note, standing=case.path == "standing")
             entry = {"case": case.id, "run": run, "note": case.note}
             try:
                 flags = reader.ask(text)
@@ -97,7 +97,7 @@ def collect(reader: NotesReader, cases: list[Case], runs: int, now: datetime | N
                 entry["error"] = str(e)
             answers.append(entry)
     return {
-        "prompt_version": PROMPT_VERSION,
+        "prompt_version": reader.prompt_version,
         "source": reader.source(),
         "created": (now or datetime.now(timezone.utc)).isoformat(timespec="seconds"),
         "runs": runs,
@@ -273,6 +273,7 @@ def main(argv: list[str] | None = None) -> None:
     run = sub.add_parser("run", help="ask the model about every case, save and score")
     run.add_argument("--runs", type=int, default=3)
     run.add_argument("--model", help="try another model on the same set")
+    run.add_argument("--prompt", default=PROMPT_VERSION, choices=sorted(FRAMING), help="prompt version to test")
     sc = sub.add_parser("score", help="score a saved results file (no API call)")
     sc.add_argument("file", nargs="?", type=Path, help="default: the latest in evals/notes/results/")
     args = parser.parse_args(argv)
@@ -284,7 +285,9 @@ def main(argv: list[str] | None = None) -> None:
         env = dict(os.environ)
         if args.model:
             env[llm.get("model_env", "ANTHROPIC_MODEL")] = args.model
-        reader = NotesReader(provider_from_config(llm, env), llm.get("retry_pause_seconds", 2))
+        reader = NotesReader(
+            provider_from_config(llm, env), llm.get("retry_pause_seconds", 2), prompt_version=args.prompt,
+        )
         results = collect(reader, cases, args.runs)
         path = save(results)
         print(f"Saved {path.relative_to(EVALS.parents[1])}\n")

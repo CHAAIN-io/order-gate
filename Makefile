@@ -16,8 +16,8 @@ test: ## Run all tests
 read-note: ## Read one note with the real model, using your .env: make read-note NOTE="..."
 	@set -a; [ -f .env ] && . ./.env; set +a; $(BIN)/python -m chaain.workflows.order_push.notes_reader "$(NOTE)"
 
-eval: ## Run the notes eval with the real model, using your .env, and save the answers: make eval [RUNS=3] [MODEL=...]
-	@set -a; [ -f .env ] && . ./.env; set +a; $(BIN)/python -m chaain.workflows.order_push.notes_eval run --runs $(or $(RUNS),3) $(if $(MODEL),--model $(MODEL))
+eval: ## Run the notes eval with the real model, using your .env, and save the answers: make eval [RUNS=3] [MODEL=...] [PROMPT=notes-v1]
+	@set -a; [ -f .env ] && . ./.env; set +a; $(BIN)/python -m chaain.workflows.order_push.notes_eval run --runs $(or $(RUNS),3) $(if $(MODEL),--model $(MODEL)) $(if $(PROMPT),--prompt $(PROMPT))
 
 eval-score: ## Score saved eval answers, no API call: make eval-score [FILE=evals/notes/results/...json]
 	$(BIN)/python -m chaain.workflows.order_push.notes_eval score $(FILE)

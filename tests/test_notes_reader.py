@@ -83,6 +83,11 @@ def test_only_the_added_text_is_sent(gen):
     assert "THIS WEEK deliver Tuesday instead" in text and sale.standing_note not in text
 
 
+def test_an_unknown_prompt_version_is_refused():
+    with pytest.raises(ValueError, match="unknown prompt version"):
+        NotesReader(FakeProvider(), prompt_version="notes-v9")
+
+
 def test_a_rewritten_note_and_the_memo_are_sent_whole(gen):
     sale = gen.make("time_in_instructions", memo="Collect empties")
     text = changed_text(sale)
