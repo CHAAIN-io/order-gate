@@ -125,12 +125,7 @@ def _alert(ledger: Ledger, notifier: Notifier, report: ResolverReport) -> None:
 
 
 def _line(entry: Entry) -> str:
-    what = {
-        State.CHECK: "may or may not be at the warehouse",
-        State.HELD: "held for a decision",
-        State.REJECTED: "refused by the warehouse",
-    }[entry.state]
-    return f"- {entry.so_number}: {what}. {entry.reason}"
+    return f"- {entry.so_number} ({entry.state.value}): {entry.reason}"
 
 
 def _noted_since_change(history: list[Event], reason: str) -> bool:

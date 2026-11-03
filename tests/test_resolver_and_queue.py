@@ -205,7 +205,7 @@ def test_queue_order_is_unknown_first_then_held_then_refused_oldest_first(gen, c
 
     order = [(i.so_number, i.section) for i in build_queue(clock.now, ledger, stock)]
     assert order == [
-        (check.so_number, UNKNOWN), (stale.so_number, UNKNOWN),
+        (check.so_number, UNKNOWN), (stale.so_number, UNKNOWN),  # by when each was claimed
         (first_hold.so_number, HELD), (second_hold.so_number, HELD),
         (refused.so_number, REFUSED),
     ]
@@ -360,3 +360,11 @@ def test_a_note_changes_neither_state_nor_reason_nor_age(gen, clock, ledger, sto
     assert (after.state, after.reason, after.updated_at) == (before.state, before.reason, before.updated_at)
     assert after.fingerprint == "abc"
     assert ledger.history(sale.so_number)[-1].is_note
+
+
+def test_an_unknown_item_has_been_waiting_since_it_was_claimed(gen, clock, ledger, stock, wh):
+    sale = gen.make()
+    claimed(ledger, stock, sale)
+    resolve(clock.advance(minutes=40), ledger, wh, MemoryNotifier())
+    [item] = build_queue(clock.now, ledger, stock)
+    assert item.state is State.CHECK and clock.now - item.since == timedelta(minutes=40)

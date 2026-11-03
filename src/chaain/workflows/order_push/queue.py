@@ -129,7 +129,9 @@ def _item(entry: Entry, ledger: Ledger, stock: StockSystem, tz: ZoneInfo) -> Ite
     )
     if entry.state is State.PENDING:
         question = "The resolver moves this to CHECK on its next run. " + question
-    return Item(so, entry.state, UNKNOWN, customer, entry.updated_at, (entry.reason,), tuple(evidence),
+    # In limbo since it was claimed, not since the resolver noticed.
+    claimed = next((e.at for e in reversed(history) if e.to_state is State.PENDING and not e.is_note), entry.updated_at)
+    return Item(so, entry.state, UNKNOWN, customer, claimed, (entry.reason,), tuple(evidence),
                 question, ACTIONS[entry.state])
 
 

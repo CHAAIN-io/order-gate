@@ -2,7 +2,7 @@ PYTHON := python3.12
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: setup test clean read-note eval eval-score
+.PHONY: setup test clean read-note eval eval-score queue
 
 setup: ## Create the virtual environment and install pinned dependencies
 	$(PYTHON) -m venv $(VENV)
@@ -21,6 +21,9 @@ eval: ## Run the notes eval with the real model, using your .env, and save the a
 
 eval-score: ## Score saved eval answers, no API call: make eval-score [FILE=evals/notes/results/...json]
 	$(BIN)/python -m chaain.workflows.order_push.notes_eval score $(FILE)
+
+queue: ## Open the team queue on a demo morning (offline): make queue AS="Ops lead"
+	@$(BIN)/python -m chaain.workflows.order_push.queue_cli --as "$(AS)"
 
 clean: ## Remove the virtual environment and caches
 	rm -rf $(VENV) .pytest_cache src/*.egg-info
