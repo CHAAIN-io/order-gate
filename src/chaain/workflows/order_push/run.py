@@ -117,8 +117,15 @@ def _too_old(sale: Sale, now: datetime, settings: RunSettings) -> bool:
     return now - invoiced > timedelta(days=settings.max_invoice_age_days)
 
 
+def customers_already_sent(ledger: Ledger) -> frozenset[str]:
+    """Customers with an order at the warehouse: anyone else is new."""
+    return frozenset(e.customer_id for e in ledger.in_state(State.SENT) if e.customer_id)
+
+
 def _act(sale: Sale, decision: Decision, ledger: Ledger, warehouse: Warehouse, report: RunReport) -> None:
     so = sale.so_number
+    for finding in decision.reports:
+        report.note(so, "reported", finding)
     if decision.route is Route.SKIP:
         ledger.move(so, State.SKIPPED, decision.summary, final=decision.final)
         report.note(so, "skipped", decision.summary)

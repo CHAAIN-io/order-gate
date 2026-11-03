@@ -17,6 +17,7 @@ class Decision:
     route: Route
     reasons: tuple[str, ...]
     final: bool = False  # a SKIP that must never be reconsidered (e.g. #NOVISION)
+    reports: tuple[str, ...] = ()  # findings shown to the team that don't hold the order
 
     def __post_init__(self) -> None:
         if self.route is not Route.AUTO and not self.reasons:

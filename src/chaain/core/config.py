@@ -16,3 +16,8 @@ CONFIGS = Path(__file__).resolve().parents[3] / "configs"
 def load_settings(profile: str = "demo", configs: Path = CONFIGS) -> dict:
     with open(configs / profile / "settings.yaml") as f:
         return yaml.safe_load(f) or {}
+
+
+def load_rules(profile: str = "demo", configs: Path = CONFIGS) -> dict:
+    with open(configs / profile / "rules.yaml") as f:
+        return yaml.safe_load(f) or {}

@@ -1,2 +1,53 @@
 # Gate rules for the demo client profile (Client-Wine).
-# Filled in at Stage 2.1. A real client gets its own folder, e.g. configs/client-wine/.
+# Values the team owns live here; the logic lives in
+# src/chaain/workflows/order_push/gate.py, with tests.
+# A real client gets its own folder, e.g. configs/client-wine/.
+
+locations:
+  warehouse: Warehouse-3PL
+  second_site: Site-B
+
+# Customers that are really us, e.g. the warehouse set up for stock
+# corrections. Their sales are never deliveries.
+internal_customer_ids:
+  - "00000000-0000-4000-8000-000000000001"
+
+# In the sale note or the order memo. Case and spacing tolerant: "# novision".
+do_not_send_marker: "#NOVISION"
+
+# Free delivery from a number of bottles that depends on the delivery area
+# (postcode area letters). Below the band, the invoice should carry a
+# delivery-charge line. Bands other than London 24 / Scotland 120 are assumed.
+minimums:
+  delivery_charge_sku: DELIVERY
+  default_bottles: 36
+  bands:
+    - name: London
+      bottles: 24
+      areas: [E, EC, N, NW, SE, SW, W, WC]
+    - name: Scotland
+      bottles: 120
+      areas: [AB, DD, DG, EH, FK, G, HS, IV, KA, KW, KY, ML, PA, PH, TD, ZE]
+
+stock:
+  # Bottles kept back when comparing an order with the warehouse's physical stock.
+  safety_margin_bottles: 0
+
+notes:
+  # Provisional; decided at Stage 2.2.
+  confidence_threshold: 0.8
+
+# What each HOLD rule does: hold (a person decides), report (shown, not
+# held) or off. Defaults are the lean set; the rest report, so their
+# frequency can be measured before anyone decides to hold on them.
+rules:
+  credit_hold: hold
+  stock_shortfall: hold
+  mixed_locations: hold
+  shopify_at_warehouse: hold
+  data_defects: hold
+  new_customer: hold
+  notes: hold
+  vintage_change: report
+  reserved_stock: report
+  below_minimum: report
