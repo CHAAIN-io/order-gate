@@ -14,6 +14,8 @@
 # empty `must` should reach a person only if the reader is wrong.
 #
 # Expected answers: Context Check 03, confirmed by Charlie at Stage 2.3.
+# The six marked "(v2)" came from the client project after the notes-v1 run,
+# as realistic tests of the notes-v2 fixes.
 
 cases:
   # ---------- clearly safe: false-positive tests ----------
@@ -37,6 +39,17 @@ cases:
     must: []
     why: The window is handled by the rule, and the rest holds no time.
 
+  - id: as-per-usual
+    note: "as per usual, cheers"
+    must: []
+    why: (v2) Adds nothing. Email orders often end with a line like this.
+
+  - id: delivery-days
+    note: "Tues or Thurs ONLY pls - we're not open for deliverys mon/weds/fri"
+    must: []
+    may: [needs_human]
+    why: (v2) A day is not a time. The days matter, so a person reading it is fair.
+
   # ---------- times the warehouse forbids ----------
   - id: before-10am
     note: "Deliver before 10am please, kitchen closed after."
@@ -58,6 +71,12 @@ cases:
     note: "Goods in via loading bay, after 10:30"
     must: [time_in_instructions]
     why: The loose format the client project says is common.
+
+  - id: before-11-text-speak
+    note: "can u get it here b4 11 if pos, chef finishes at 11 and theres nobody to sign"
+    must: [time_in_instructions]
+    may: [needs_human]
+    why: (v2) A specific time in loose wording.
 
   - id: asap
     note: "asap!!"
@@ -83,6 +102,12 @@ cases:
     may: [needs_human]
     why: A one-off address. Multi-site customers were meant to be split.
 
+  - id: new-site-email
+    note: "Hi both, can this weeks order go to the new site at 7 Demo Yard instead of the usual? Old place is shut for the refit till the 22nd. Ask for Sam when they arrive. Thanks! Jo"
+    must: [one_off_delivery_change]
+    may: [needs_human]
+    why: (v2) A one-off in the customer's words. "till the 22nd" is a date, not a time.
+
   - id: closed-monday
     note: "Closed Monday for refurb, deliver Tuesday instead"
     must: [one_off_delivery_change]
@@ -101,6 +126,11 @@ cases:
     why: Part of the order waits.
 
   # ---------- a person should read it ----------
+  - id: chenin-if-vintage
+    note: "leave the chenin off if the new vintage isnt in yet, we'll take it next wk. rest is fine"
+    must: [partial_send, needs_human]
+    why: (v2) A line held back, but only on a condition a person has to check.
+
   - id: vintage-swap
     note: "Please send the 2022 if the 2021 is gone"
     must: [needs_human]
@@ -129,3 +159,9 @@ cases:
     note: "Cellar hatch at rear. 10:00-14:00. NB new manager from Nov, check address"
     must: [needs_human]
     why: An out-of-date reminder. Fix the customer record once.
+
+  - id: standing-access-fine
+    path: standing
+    note: "Service door on Demo Lane NOT the front (glass door, cant take pallets). Cases down to cellar pls not behind bar. Chris 07700 900482 if no ans"
+    must: []
+    why: (v2) A good standing comment. It must not trigger "fix the customer record".
