@@ -103,13 +103,26 @@ def test_a_note_that_holds_on_one_run_and_not_another_is_a_flip():
     assert s.flips == ["asap"] and s.missed == [("asap", 2)]
 
 
-def test_the_suggested_threshold_is_the_lowest_with_no_misses():
-    """Lower thresholds hold less, so the lowest one that misses nothing
-    gives the fewest wrong holds."""
+def test_the_suggested_threshold_has_no_misses_and_the_fewest_wrong_holds():
+    """Lower thresholds hold less: too low misses the risky note, too high
+    holds the safe one."""
     risky, safe = case("risky", must=["needs_human"]), case("safe")
-    s = score(results(answer(risky, confidence=0.85), answer(safe, confidence=0.88)), [risky, safe], 0.8)
-    assert s.sweep[0.85] == (1, 0) and s.sweep[0.9] == (0, 1)
-    assert s.suggested_threshold == 0.9
+    s = score(results(answer(risky, confidence=0.72), answer(safe, confidence=0.88)), [risky, safe], 0.8)
+    assert s.sweep[0.7] == (1, 0) and s.sweep[0.75] == (0, 0) and s.sweep[0.9] == (0, 1)
+    assert s.suggested_threshold == 0.85  # 0.75, 0.8 and 0.85 tie: the higher wins
+
+
+def test_a_safe_note_held_only_by_a_may_flag_is_a_fair_hold():
+    c = case("days", may=["needs_human"])
+    s = score(results(answer(c, raised=["needs_human"])), [c], 0.8)
+    assert s.wrong_holds == [] and s.fair_holds == [("days", 1)]
+    assert s.sweep[0.8] == (0, 0)
+
+
+def test_a_may_flag_plus_any_other_reason_is_still_a_wrong_hold():
+    c = case("days", may=["needs_human"])
+    s = score(results(answer(c, raised=["needs_human"], unsure=["time_in_instructions"])), [c], 0.8)
+    assert s.wrong_holds == [("days", 1)]
 
 
 def test_holding_for_the_wrong_flag_still_holds_but_is_a_flag_miss():

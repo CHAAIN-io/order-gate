@@ -8,7 +8,8 @@ Two steps, kept apart so the numbers can be reproduced without the API:
 The headline is route recall: of the notes that should reach a person, how
 many did. A miss there is an order sent straight to picking. Per-flag
 precision and recall sit underneath. A flag listed in a case's `may` is a
-fair reading and isn't scored either way.
+fair reading and isn't scored either way: a safe note held only by a `may`
+flag is a fair hold, not a wrong one.
 
 "Reaches a person" follows the gate: on an order note, any raised flag, any
 unraised flag below the confidence threshold, or a failed read means HOLD.
@@ -125,6 +126,19 @@ def reaches_person(case: Case, answer: dict, threshold: float) -> bool:
     return case.path == "order" and any(f["confidence"] < threshold for f in flags)
 
 
+def wrongly_held(case: Case, answer: dict, threshold: float) -> bool:
+    """A note that needn't reach a person did, for a reason the key doesn't
+    accept: a flag outside `may`, a low confidence or a failed read."""
+    if case.needs_person:
+        return False
+    if "error" in answer:
+        return True
+    flags = answer["flags"]
+    if any(f["raised"] and name not in case.may for name, f in flags.items()):
+        return True
+    return case.path == "order" and any(not f["raised"] and f["confidence"] < threshold for f in flags.values())
+
+
 @dataclass
 class FlagCounts:
     tp: int = 0
@@ -149,6 +163,7 @@ class Score:
     reached: int = 0  # ... of which reached one
     missed: list[tuple[str, int]] = field(default_factory=list)  # (case, run): sent when it shouldn't be
     wrong_holds: list[tuple[str, int]] = field(default_factory=list)  # (case, run): held when it needn't be
+    fair_holds: list[tuple[str, int]] = field(default_factory=list)  # (case, run): held by a `may` flag only
     unsure_only: list[tuple[str, int]] = field(default_factory=list)  # held only by a low confidence
     flips: list[str] = field(default_factory=list)  # cases whose outcome changed between runs
     flags: dict[str, FlagCounts] = field(default_factory=lambda: {name: FlagCounts() for name in FLAGS})
@@ -160,11 +175,12 @@ class Score:
 
     @property
     def suggested_threshold(self) -> float | None:
-        """The lowest threshold with no misses: the fewest wrong holds while
-        missing nothing. None if no threshold gets to zero misses, which
-        means the prompt needs work, not the threshold."""
-        clean = [t for t, (missed, _) in sorted(self.sweep.items()) if missed == 0]
-        return clean[0] if clean else None
+        """The threshold with no misses and the fewest wrong holds. Ties go
+        to the higher one, since a wrong send costs more than a wrong hold.
+        None if no threshold gets to zero misses, which means the prompt
+        needs work, not the threshold."""
+        clean = [(wrong, -t) for t, (missed, wrong) in self.sweep.items() if missed == 0]
+        return -min(clean)[1] if clean else None
 
 
 def score(results: dict, cases: list[Case], threshold: float, thresholds=THRESHOLDS) -> Score:
@@ -186,8 +202,10 @@ def score(results: dict, cases: list[Case], threshold: float, thresholds=THRESHO
             s.reached += reached
             if not reached:
                 s.missed.append(key)
-        elif reached:
+        elif wrongly_held(case, a, threshold):
             s.wrong_holds.append(key)
+        elif reached:
+            s.fair_holds.append(key)
         if "error" in a:
             s.errors += 1
             continue
@@ -206,7 +224,7 @@ def score(results: dict, cases: list[Case], threshold: float, thresholds=THRESHO
     s.flips = [cid for cid, seen in outcomes.items() if len(seen) > 1]
     for t in thresholds:
         missed = sum(1 for c, a in answers if c.needs_person and not reaches_person(c, a, t))
-        wrong = sum(1 for c, a in answers if not c.needs_person and reaches_person(c, a, t))
+        wrong = sum(1 for c, a in answers if wrongly_held(c, a, t))
         s.sweep[t] = (missed, wrong)
     return s
 
@@ -231,6 +249,7 @@ def report(s: Score, results: dict) -> str:
         f"Route recall: {pct(s.route_recall)}  ({s.reached} of {s.should_reach} reached a person)",
         f"Missed (sent, should have held): {len(s.missed)}  {_keys(s.missed)}",
         f"Wrong holds (held, needn't be):  {len(s.wrong_holds)}  {_keys(s.wrong_holds)}",
+        f"Fair holds (by a 'may' flag):    {len(s.fair_holds)}  {_keys(s.fair_holds)}",
         f"Held only by low confidence:     {len(s.unsure_only)}  {_keys(s.unsure_only)}",
     ]
     if runs > 1:
@@ -249,7 +268,7 @@ def report(s: Score, results: dict) -> str:
     elif len(set(s.sweep.values())) == 1:
         lines.append("The threshold makes no difference on this run: keep the current one.")
     else:
-        lines.append(f"Lowest threshold with no misses: {suggested:.2f}")
+        lines.append(f"Suggested threshold (no misses, fewest wrong holds, ties go higher): {suggested:.2f}")
     return "\n".join(lines)
 
 
