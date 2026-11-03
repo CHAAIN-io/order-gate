@@ -244,10 +244,12 @@ def report(s: Score, results: dict) -> str:
         lines.append(f"  {t:.2f}           {missed:>6}  {wrong:>11}{mark}")
     suggested = s.suggested_threshold
     lines.append("")
-    lines.append(
-        f"Lowest threshold with no misses: {suggested:.2f}" if suggested is not None
-        else "No threshold gets to zero misses: change the prompt, not the threshold."
-    )
+    if suggested is None:
+        lines.append("No threshold gets to zero misses: change the prompt, not the threshold.")
+    elif len(set(s.sweep.values())) == 1:
+        lines.append("The threshold makes no difference on this run: keep the current one.")
+    else:
+        lines.append(f"Lowest threshold with no misses: {suggested:.2f}")
     return "\n".join(lines)
 
 

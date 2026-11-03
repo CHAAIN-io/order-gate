@@ -169,3 +169,12 @@ def test_a_run_where_every_read_failed_reports_nothing_measured():
     text = report(score(failed, [c], 0.8), failed)
     assert "nothing was measured" in text and "credentials rejected" in text
     assert "Route recall" not in text and "Lowest threshold" not in text
+
+
+def test_a_flat_sweep_suggests_keeping_the_current_threshold():
+    """If every threshold gives the same result, confidence did no work, so
+    there's nothing to tune."""
+    c = case("safe")
+    out = results(answer(c, raised=["needs_human"]))
+    text = report(score(out, [c], 0.8), out)
+    assert "makes no difference" in text and "Lowest threshold" not in text
