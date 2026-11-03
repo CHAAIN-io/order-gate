@@ -29,3 +29,15 @@ scheduler:
   lookback_hours: 48           # sales changed in this window are looked at
   max_invoice_age_days: 7      # older invoices are ignored, even if changed recently
   per_run_cap: 10              # applied AFTER dedup, so sent orders can't use it up
+
+llm:
+  # The notes reader's model. The API key is read by the SDK from the
+  # environment (ANTHROPIC_API_KEY in .env); it never appears in config.
+  provider: anthropic
+  model_env: ANTHROPIC_MODEL          # set this in .env to override the default
+  default_model: claude-opus-5-5
+  effort: low                         # a short classification: low effort is enough
+  max_tokens: 4000
+  timeout_seconds: 30
+  refusal_fallback: true              # re-run server-side if the model declines
+  retry_pause_seconds: 2              # one retry after this pause, then HOLD
