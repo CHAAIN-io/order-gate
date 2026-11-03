@@ -1,2 +1,20 @@
 # Runtime settings for the demo client profile.
-# Poll interval, lookback, per-run cap and timeouts are added in Stages 1.4-1.5.
+# Poll interval, lookback and per-run cap are added in Stage 1.5.
+
+warehouse:
+  # Codes the warehouse issues to this client. Placeholders in the demo.
+  account_code: DEMO
+  site_code: SITE
+  # How long to wait. A timeout means "we stopped waiting", not "it failed":
+  # the order goes to CHECK, never straight back out.
+  connect_timeout_seconds: 10
+  response_timeout_seconds: 60
+  # Whether the warehouse can be asked "do you have this doc ref?". Unknown for
+  # the real one, so off: a person checks instead.
+  lookup_enabled: false
+  delivery:
+    default_earliest: "08:00"
+    default_latest: "17:00"
+    min_window_minutes: 120    # warehouse needs at least 2 hours
+    instructions_max_chars: 120
+    booking_required: false    # true puts every order on hold at the warehouse
