@@ -6,7 +6,8 @@ from datetime import timedelta
 import pytest
 
 from chaain.connectors.stock_system.generator import (
-    DEFAULT_DAY_MIX, INTERNAL_CUSTOMER_ID, SCENARIOS, SITE_B, WAREHOUSE, SaleGenerator,
+    CATALOGUE, DEFAULT_DAY_MIX, INTERNAL_CUSTOMER_ID, SCENARIOS, SITE_B, TYPICAL_MINIMUM,
+    WAREHOUSE, SaleGenerator,
 )
 from chaain.connectors.stock_system.interface import StockSystem
 from chaain.connectors.stock_system.mock import MockStockSystem
@@ -66,6 +67,69 @@ def test_novision_can_sit_in_note_or_memo(gen):
     assert "#NOVISION" in gen.make("novision_memo").memo
 
 
+def test_vintage_matches_the_sku_convention():
+    for code, _, vintage, _ in CATALOGUE:
+        assert code[5:7] == ("NV" if vintage is None else f"{vintage % 100:02d}")
+
+
+def test_ordinary_sales_clear_their_region_minimum(gen):
+    region = {c.id: c.region for c in gen.customers}
+    for sale in (gen.make("standard") for _ in range(30)):
+        assert sale.total_bottles >= TYPICAL_MINIMUM[region[sale.customer_id]]
+
+
+def test_below_minimum_depends_on_region(gen):
+    region = {c.id: c.region for c in gen.customers}
+    london = gen.make("below_minimum")
+    scotland = gen.make("below_minimum_scotland")
+    assert region[london.customer_id] == "London" and london.total_bottles < 24
+    assert region[scotland.customer_id] == "Scotland" and 24 <= scotland.total_bottles < 120
+
+
+def test_shopify_default_is_site_b_but_can_be_switched_to_warehouse(gen):
+    default = gen.make("shopify")
+    switched = gen.make("shopify_warehouse_pick")
+    assert default.source_channel is switched.source_channel is SourceChannel.SHOPIFY
+    assert default.pick_locations == {SITE_B}
+    assert switched.pick_locations == {WAREHOUSE}
+
+
+def test_second_fulfilment_is_visible_and_picked_at_site_b(gen):
+    sale = gen.make("second_fulfilment")
+    assert sale.fulfilments == {1, 2}
+    assert {l.pick_location for l in sale.lines if l.fulfilment == 2} == {SITE_B}
+
+
+def test_credited_after_invoicing(gen):
+    assert gen.make("credited").status is SaleStatus.CREDITED
+
+
+def test_header_contact_is_copied_from_the_default_contact(gen):
+    sale = gen.make("standard")
+    default = next(c for c in sale.contacts if c.is_default)
+    assert (sale.contact_name, sale.phone) == (default.name, default.phone)
+
+
+def test_contact_scenarios(gen):
+    assert not any("Delivery" in c.job_title for c in gen.make("no_delivery_contact").contacts)
+    tagged = [c for c in gen.make("multiple_contacts").contacts if c.job_title == "Delivery"]
+    assert len(tagged) == 2 and not tagged[0].mobile and tagged[1].mobile
+    nophone = gen.make("no_phone")
+    assert nophone.phone == "" and all(not (c.phone or c.mobile) for c in nophone.contacts)
+
+
+def test_accented_text_and_zero_price(gen):
+    accented = gen.make("accented_text")
+    assert "é" in accented.customer_name and "&" in accented.note and "'" in accented.shipping_address.line1
+    assert any(l.price == 0 for l in gen.make("zero_price_line").lines)
+
+
+def test_clock_change_offsets(gen):
+    sale = gen.make("across_clock_change")
+    assert sale.order_date.utcoffset() == timedelta(hours=1)  # BST
+    assert sale.invoice_date.utcoffset() == timedelta(0)  # GMT
+
+
 def test_internal_customer(gen):
     assert gen.make("internal_customer").customer_id == INTERNAL_CUSTOMER_ID
 
@@ -109,7 +173,7 @@ def test_day_includes_the_mix_and_tops_up(gen):
     sales = gen.day(n=20)
     assert len(sales) == 20
     shopify = [s for s in sales if s.source_channel is SourceChannel.SHOPIFY]
-    assert len(shopify) == DEFAULT_DAY_MIX["shopify"]
+    assert len(shopify) == DEFAULT_DAY_MIX["shopify"] + DEFAULT_DAY_MIX["shopify_warehouse_pick"]
 
 
 def test_day_rejects_a_mix_larger_than_n(gen):

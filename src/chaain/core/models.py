@@ -25,6 +25,10 @@ class SaleStatus(str, Enum):
     PICKED = "Picked"
     PACKED = "Packed"
     INVOICED = "Invoiced"
+    # After invoicing. If the order already went to the warehouse, a person
+    # has to fix it there: nothing flows back automatically.
+    CREDITED = "Credited"
+    VOIDED = "Voided"
 
 
 class SourceChannel(str, Enum):
@@ -51,19 +55,36 @@ class Address:
 
 
 @dataclass(frozen=True)
+class Contact:
+    """A contact on the customer record, read by the connector with the sale.
+
+    The delivery contact is chosen at push time: a "Delivery" job title wins,
+    because the record's default contact is often the buyer or accounts.
+    """
+
+    name: str
+    job_title: str
+    phone: str
+    mobile: str
+    is_default: bool
+
+
+@dataclass(frozen=True)
 class SaleLine:
     """One product on a sale, from one pick location.
 
     A line picked from two places is split by the connector into two lines,
-    so each line has exactly one pick location.
+    so each line has exactly one pick location. Lines from every fulfilment
+    are included, not just the first.
     """
 
     sku: str
     product_name: str
-    vintage: int | None  # None for non-vintage wines
+    vintage: int | None  # part of the SKU; None for non-vintage ("NV")
     qty: int  # single bottles, never cases
-    price: Decimal
+    price: Decimal  # sent to the warehouse; zero for samples
     pick_location: str
+    fulfilment: int = 1  # which fulfilment the line was picked in
 
     def __post_init__(self) -> None:
         if not self.sku:
@@ -72,6 +93,8 @@ class SaleLine:
             raise ValueError(f"qty must be a positive whole number of bottles, got {self.qty!r}")
         if self.price < 0:
             raise ValueError("price can't be negative")
+        if self.fulfilment < 1:
+            raise ValueError("fulfilment numbers start at 1")
 
 
 @dataclass(frozen=True)
@@ -91,8 +114,9 @@ class Sale:
     source_channel: SourceChannel
     customer_id: str
     customer_name: str
-    contact_name: str
+    contact_name: str  # sale header contact, copied from the default at creation
     phone: str  # as entered in the stock system; formatted at push time
+    contacts: tuple[Contact, ...]  # the customer record's contacts
     shipping_address: Address
     customer_reference: str
     header_location: str
@@ -112,8 +136,8 @@ class Sale:
             raise ValueError(f"unknown status {self.status!r}")
         if not isinstance(self.source_channel, SourceChannel):
             raise ValueError(f"unknown source channel {self.source_channel!r}")
-        if not isinstance(self.lines, tuple):
-            raise ValueError("lines must be a tuple, so the sale stays unchangeable")
+        if not isinstance(self.lines, tuple) or not isinstance(self.contacts, tuple):
+            raise ValueError("lines and contacts must be tuples, so the sale stays unchangeable")
         _require_aware("order_date", self.order_date)
         _require_aware("invoice_date", self.invoice_date)
         _require_aware("last_modified", self.last_modified)
@@ -122,6 +146,10 @@ class Sale:
     def pick_locations(self) -> frozenset[str]:
         """Every location stock was picked from. More than one means mixed."""
         return frozenset(line.pick_location for line in self.lines)
+
+    @property
+    def fulfilments(self) -> frozenset[int]:
+        return frozenset(line.fulfilment for line in self.lines)
 
     @property
     def total_bottles(self) -> int:

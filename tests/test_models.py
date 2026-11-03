@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from chaain.core.models import Address, Sale, SaleLine, SaleStatus, SourceChannel
+from chaain.core.models import Address, Contact, Sale, SaleLine, SaleStatus, SourceChannel
 
 NOW = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
 
@@ -25,6 +25,7 @@ def sale(**overrides):
         status=SaleStatus.INVOICED, source_channel=SourceChannel.WHOLESALE,
         customer_id="c1", customer_name="Demo Venue 01", contact_name="Duty Manager",
         phone="07700 900001",
+        contacts=(Contact("Duty Manager", "Manager", "07700 900001", "", True),),
         shipping_address=Address("1 Demo Street", "", "London", "", "EC1A 9ZZ"),
         customer_reference="", header_location="Warehouse-3PL", note="", memo="",
         order_date=NOW, invoice_date=NOW, last_modified=NOW,
@@ -42,6 +43,21 @@ def test_valid_sale_builds_and_derives_totals():
 def test_mixed_pick_locations_are_visible():
     s = sale(lines=(line(), line(pick_location="Site-B")))
     assert s.pick_locations == {"Warehouse-3PL", "Site-B"}
+
+
+def test_lines_from_every_fulfilment_are_kept():
+    s = sale(lines=(line(), line(fulfilment=2, pick_location="Site-B")))
+    assert s.fulfilments == {1, 2}
+    assert "Site-B" in s.pick_locations
+
+
+def test_fulfilment_numbers_start_at_one():
+    with pytest.raises(ValueError):
+        line(fulfilment=0)
+
+
+def test_zero_price_sample_line_is_allowed():
+    assert line(price=Decimal("0"), qty=1).price == 0
 
 
 def test_sale_cannot_be_changed_after_building():
@@ -69,6 +85,8 @@ def test_naive_timestamp_rejected():
         sale(last_modified=datetime(2026, 11, 4, 12, 0))
 
 
-def test_lines_must_be_a_tuple():
+def test_lines_and_contacts_must_be_tuples():
     with pytest.raises(ValueError):
         sale(lines=[line()])
+    with pytest.raises(ValueError):
+        sale(contacts=[])
