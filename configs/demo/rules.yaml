@@ -34,7 +34,9 @@ stock:
   safety_margin_bottles: 0
 
 notes:
-  # Provisional; decided at Stage 2.2.
+  # Kept at 0.8 after the Stage 2.3 eval (notes-v2): 0.6 to 0.8 all gave no
+  # misses and no wrong holds, and ties go higher. Re-run `make eval` before
+  # changing it, or the prompt or model.
   confidence_threshold: 0.8
 
 # What each HOLD rule does: hold (a person decides), report (shown, not
