@@ -9,7 +9,7 @@ import pytest
 from chaain.llm import LLMError
 from chaain.llm.fake import FakeProvider
 from chaain.workflows.order_push.notes_eval import (
-    CASES, Case, collect, latest, load_cases, reaches_person, save, score,
+    CASES, Case, collect, latest, load_cases, reaches_person, report, save, score,
 )
 from chaain.workflows.order_push.notes_reader import FLAGS, NotesReader
 
@@ -160,3 +160,12 @@ def test_saved_results_can_be_rescored_without_the_api(tmp_path):
     assert latest(tmp_path) == path
     s = score(json.loads(path.read_text()), [c], 0.8)
     assert s.route_recall == 1 and s.answers == 3 and s.flips == []
+
+
+def test_a_run_where_every_read_failed_reports_nothing_measured():
+    """Failed reads hold, so an all-failed run would otherwise look perfect."""
+    c = case("a", must=["needs_human"])
+    failed = results({"case": "a", "run": 1, "note": c.note, "error": "credentials rejected"})
+    text = report(score(failed, [c], 0.8), failed)
+    assert "nothing was measured" in text and "credentials rejected" in text
+    assert "Route recall" not in text and "Lowest threshold" not in text

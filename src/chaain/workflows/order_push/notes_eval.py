@@ -219,6 +219,14 @@ def report(s: Score, results: dict) -> str:
     lines = [
         f"Notes reader eval: {results['source']}, {runs} run(s), {results['created']}",
         f"Threshold {s.threshold:.2f}. {s.answers} answers, {s.errors} failed reads.",
+    ]
+    if s.errors:
+        reasons = sorted({a["error"] for a in results["answers"] if "error" in a})
+        lines.append(f"WARNING: failed reads hold, so they inflate recall. Errors: {'; '.join(reasons)}")
+    if s.errors == s.answers:
+        lines.append("Every read failed: nothing was measured. Fix the cause and run again.")
+        return "\n".join(lines)
+    lines += [
         "",
         f"Route recall: {pct(s.route_recall)}  ({s.reached} of {s.should_reach} reached a person)",
         f"Missed (sent, should have held): {len(s.missed)}  {_keys(s.missed)}",
