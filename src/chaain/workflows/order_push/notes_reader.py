@@ -26,6 +26,9 @@ from chaain.workflows.order_push.gate import NoteFlag, NotesResult
 
 PROMPT_VERSION = "notes-v1"
 PROMPT = (Path(__file__).parent / "prompts" / f"{PROMPT_VERSION}.md").read_text()
+# How the text is framed for the model. The eval uses the same framing.
+ORDER_NOTE = "Order note (changed for this order):\n{}"
+STANDING_NOTE = "Customer's standing comment (copied onto every order):\n{}"
 FLAGS = ("invoice_only", "partial_send", "one_off_delivery_change", "time_in_instructions", "needs_human")
 
 SCHEMA = {
@@ -67,7 +70,7 @@ def changed_text(sale: Sale) -> str:
         added = note  # rewritten for this order: read all of it
     parts = []
     if added:
-        parts.append(f"Order note (changed for this order):\n{added}")
+        parts.append(ORDER_NOTE.format(added))
     if sale.memo.strip():
         parts.append(f"Order memo:\n{sale.memo.strip()}")
     return "\n\n".join(parts)
@@ -87,12 +90,12 @@ class NotesReader:
         standing, standing_error = self._standing(sale.standing_note)
         text = changed_text(sale)
         if not text:
-            return NotesResult(standing=standing, source=self._source(), standing_error=standing_error)
+            return NotesResult(standing=standing, source=self.source(), standing_error=standing_error)
         try:
-            flags = self._ask(text)
+            flags = self.ask(text)
         except LLMError as e:
-            return NotesResult(error=str(e), standing=standing, source=self._source())
-        return NotesResult(flags=flags, standing=standing, source=self._source(), standing_error=standing_error)
+            return NotesResult(error=str(e), standing=standing, source=self.source())
+        return NotesResult(flags=flags, standing=standing, source=self.source(), standing_error=standing_error)
 
     def _standing(self, note: str) -> tuple[tuple[NoteFlag, ...], str | None]:
         """Read a standing comment once per process, keyed by its text and the prompt version."""
@@ -101,13 +104,13 @@ class NotesReader:
         key = hashlib.sha256(f"{PROMPT_VERSION}\n{note.strip()}".encode()).hexdigest()
         if key not in self._standing_cache:
             try:
-                flags = self._ask(f"Customer's standing comment (copied onto every order):\n{note.strip()}")
+                flags = self.ask(STANDING_NOTE.format(note.strip()))
             except LLMError as e:
                 return (), str(e)  # not cached: try again on the next order
             self._standing_cache[key] = tuple(f for f in flags if f.raised)
         return self._standing_cache[key], None
 
-    def _ask(self, text: str) -> tuple[NoteFlag, ...]:
+    def ask(self, text: str) -> tuple[NoteFlag, ...]:
         """One try, one retry after a pause. Malformed answers count as failures."""
         try:
             return _parse(self.provider.complete_json(PROMPT, text, SCHEMA))
@@ -115,7 +118,7 @@ class NotesReader:
             self.sleep(self.retry_pause_seconds)
             return _parse(self.provider.complete_json(PROMPT, text, SCHEMA))
 
-    def _source(self) -> str:
+    def source(self) -> str:
         return f"{PROMPT_VERSION} via {self.provider.name}/{self.provider.model}"
 
 
@@ -151,10 +154,10 @@ def main(argv: list[str] | None = None) -> None:
     llm = load_settings()["llm"]
     notes = NotesReader(provider_from_config(llm), llm.get("retry_pause_seconds", 2))
     try:
-        flags = notes._ask(f"Order note (changed for this order):\n{text}")
+        flags = notes.ask(ORDER_NOTE.format(text))
     except LLMError as e:
         sys.exit(f"Notes reader unavailable: {e}")
-    print(f"Read by {notes._source()}")
+    print(f"Read by {notes.source()}")
     for f in flags:
         mark = "RAISED" if f.raised else "-"
         print(f"  {f.name:<24} {mark:<7} {f.confidence:.2f}")
