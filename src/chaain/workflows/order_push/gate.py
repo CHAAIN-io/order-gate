@@ -44,10 +44,14 @@ class NoteFlag:
 
 @dataclass(frozen=True)
 class NotesResult:
-    """What the notes reader (Stage 2.2) found. `error` means it couldn't run."""
+    """What the notes reader found. `error` means it couldn't read this order's
+    changes; `standing` are problems in the customer's standing comment."""
 
     flags: tuple[NoteFlag, ...] = ()
     error: str | None = None
+    standing: tuple[NoteFlag, ...] = ()
+    standing_error: str | None = None
+    source: str = ""  # prompt version and model, for the audit trail
 
 
 @dataclass(frozen=True)
@@ -118,6 +122,8 @@ def decide(
             holds += findings
         elif findings and mode == REPORT:
             reports += findings
+    if notes is not None and rules.modes["notes"] != OFF:
+        reports += _standing(notes)
     if holds:
         return Decision(Route.HOLD, tuple(holds), reports=tuple(reports))
     return Decision(Route.AUTO, (), reports=tuple(reports))
@@ -220,14 +226,26 @@ def _below_minimum(sale, ref, rules, problems, notes):
 def _notes(sale, ref, rules, problems, notes):
     if notes is None:
         return []
+    tag = f" [{notes.source}]" if notes.source else ""
     if notes.error:
-        return [f"Notes reader unavailable ({notes.error}): read the note before sending"]
+        return [f"Notes reader unavailable ({notes.error}): read the note before sending{tag}"]
     out = []
     for f in notes.flags:
         if f.raised:
-            out.append(f"Note: {f.name.replace('_', ' ')}: {f.explanation}")
+            out.append(f"Note: {f.name.replace('_', ' ')}: {f.explanation}{tag}")
         elif f.confidence < rules.confidence_threshold:
-            out.append(f"Note: unsure about {f.name.replace('_', ' ')} ({f.confidence:.0%}): {f.explanation}")
+            out.append(f"Note: unsure about {f.name.replace('_', ' ')} ({f.confidence:.0%}): {f.explanation}{tag}")
+    return out
+
+
+def _standing(notes: NotesResult) -> list[str]:
+    """Problems in the standing comment: fix the record once, don't hold every order."""
+    out = [
+        f"Customer's standing comment: {f.name.replace('_', ' ')}: {f.explanation} Fix the customer record."
+        for f in notes.standing
+    ]
+    if notes.standing_error:
+        out.append(f"Couldn't check the customer's standing comment ({notes.standing_error})")
     return out
 
 

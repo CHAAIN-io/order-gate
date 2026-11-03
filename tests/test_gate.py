@@ -61,6 +61,7 @@ EXPECTED = {
     # Free-text times and other note problems are the notes reader's job
     # (Stage 2.2). Until then these go AUTO: the gap the AI step closes.
     "time_in_instructions": Route.AUTO,
+    "standing_time_in_instructions": Route.AUTO,  # with notes: AUTO plus "fix the customer record"
     "no_window": Route.AUTO,
     "long_instructions": Route.AUTO,
     "accented_text": Route.AUTO,

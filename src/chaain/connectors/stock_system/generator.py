@@ -221,6 +221,7 @@ def _customer_fields(customer: Customer) -> dict:
         contacts=customer.contacts,
         shipping_address=customer.address,
         note=customer.comments,
+        standing_note=customer.comments,
     )
 
 
@@ -314,6 +315,12 @@ def _novision_memo(gen, sale):
 @scenario("time_in_instructions", "A delivery time written as free text, not as a window. The warehouse forbids times in instructions.")
 def _time_in_instructions(gen, sale):
     return replace(sale, note="Deliver before 10am please, kitchen closed after.")
+
+
+@scenario("standing_time_in_instructions", "A time in the customer's STANDING comment, copied onto every order. Fix the customer record, don't hold every order.")
+def _standing_time_in_instructions(gen, sale):
+    note = "Kitchen door only, before 11am."
+    return replace(sale, note=note, standing_note=note)
 
 
 @scenario("no_window", "Instructions with no delivery window. The default window applies.")

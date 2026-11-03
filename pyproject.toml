@@ -13,3 +13,6 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+chaain = ["workflows/order_push/prompts/*.md"]

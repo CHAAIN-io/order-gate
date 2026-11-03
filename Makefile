@@ -2,7 +2,7 @@ PYTHON := python3.12
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: setup test clean
+.PHONY: setup test clean read-note
 
 setup: ## Create the virtual environment and install pinned dependencies
 	$(PYTHON) -m venv $(VENV)
@@ -12,6 +12,9 @@ setup: ## Create the virtual environment and install pinned dependencies
 
 test: ## Run all tests
 	$(BIN)/pytest
+
+read-note: ## Read one note with the real model, using your .env: make read-note NOTE="..."
+	@set -a; [ -f .env ] && . ./.env; set +a; $(BIN)/python -m chaain.workflows.order_push.notes_reader "$(NOTE)"
 
 clean: ## Remove the virtual environment and caches
 	rm -rf $(VENV) .pytest_cache src/*.egg-info

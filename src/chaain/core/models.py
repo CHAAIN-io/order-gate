@@ -126,6 +126,9 @@ class Sale:
     invoice_date: datetime | None  # None until invoiced
     last_modified: datetime
     lines: tuple[SaleLine, ...]
+    # The customer record's standing comment, which `note` starts as a copy
+    # of. Comparing the two shows what changed on this order.
+    standing_note: str = ""
 
     def __post_init__(self) -> None:
         if not self.id:
