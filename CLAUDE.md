@@ -30,15 +30,17 @@ integration, against local mocks and synthetic data.
 ## Layout
 ```
 src/chaain/
-  core/            ledger, state machine, rules engine, review queue
-  llm/             provider interface + Anthropic implementation
+  core/            ledger (repository, SQLite, states), models, decisions, config
+  llm/             provider interface: Anthropic, fake (tests), replay (demo)
   connectors/
-    stock_system/  interface + mock
-    warehouse/     interface + mock
+    stock_system/  interface, mock, synthetic data generator
+    warehouse/     interface, EDI XML builder, mock
+    notifier/      interface, mocks
   workflows/
-    order_push/    scheduler, push, resolver, gate rules, team-queue CLI
+    order_push/    scheduler, poll, gate, push, notes reader and eval,
+                   resolver, team queue and its CLI, demo day
 configs/demo/      rules.yaml, settings.yaml (one folder per client profile)
-evals/notes/       notes-reader eval set
+evals/notes/       notes-reader eval cases and saved results
 tests/
 docs/              DESIGN, decisions, components, open-questions, production-path
 ```
@@ -46,4 +48,6 @@ docs/              DESIGN, decisions, components, open-questions, production-pat
 ## Commands
 - `make setup`: create `.venv` with Python 3.12 and install pinned dependencies.
 - `make test`: run all tests.
+- `make demo`: a simulated day; `make queue AS="Ops lead"`: act on its queue.
+- `make eval` / `make eval-score`: run or re-score the notes eval.
 - Ask before adding a dependency. Pin exact versions in `requirements.txt`.

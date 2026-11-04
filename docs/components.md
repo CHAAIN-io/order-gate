@@ -12,7 +12,8 @@ logic is theirs.
 - **Tested:** covered by unit and incident tests, against mocks.
 - **Production:** running against real systems.
 
-Nothing here is production yet.
+Nothing here is production yet. Paths are under `src/chaain/` unless they
+start with `configs/` or `evals/`.
 
 | Component | Path | Does | Scope | Maturity |
 |---|---|---|---|---|

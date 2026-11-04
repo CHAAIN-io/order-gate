@@ -1,5 +1,21 @@
-"""One test per past incident or near-miss, numbered as in the brief.
-Each recreates the conditions and proves the safe outcome."""
+"""Past incidents and near-misses, each recreated to prove the safe outcome.
+
+The numbers come from the build's original test plan; some live in other
+files, next to the code they test:
+  1  cap applied before dedup (go-live)           here
+  2  accepted, but our log write failed (October) here
+  3  timeout: CHECK, never resent                 here
+  4  picked at Site-B under a warehouse header    test_gate.py
+  5  Shopify at Site-B vs at the warehouse        test_gate.py
+  6  #NOVISION is a final skip                    test_gate.py
+  7  lookback across the manual cutover           here
+  8  truncated ID on a hand-entered row           here
+  9  credit hold                                  test_gate.py
+  10 mixed pick locations                         test_gate.py
+  11 time in delivery instructions                test_gate.py, test_notes_eval.py
+  12 stuck order on a quiet weekend               test_resolver_and_queue.py
+  13 two runs at once                             here
+"""
 
 import threading
 import time

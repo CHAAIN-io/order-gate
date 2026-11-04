@@ -2,7 +2,7 @@
 name = "chaain"
 version = "0.1.0"
 description = "Order gate and warehouse push: demo rebuild of a stock-to-EDI integration"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 [build-system]
 requires = ["setuptools>=68"]
