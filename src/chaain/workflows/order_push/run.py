@@ -1,7 +1,7 @@
 """One poll: fetch, filter, dedup, cap, gate, push.
 
 The order of these steps is the fix for the go-live bug. The live workflow
-once applied its cap of 10 before dedup, so orders that were already sent
+once applied its cap before dedup, so orders that were already sent
 used up the cap and new ones waited a day. Here dedup comes first, so the
 cap only ever counts orders that genuinely need a decision.
 """

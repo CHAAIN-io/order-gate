@@ -8,8 +8,8 @@ history.
 ---
 
 ### 1. Rules decide; AI only reads notes, and can only hold
-**Context.** Sending an order is hard to reverse: the warehouse confirms and
-picks it on arrival. Most checks (location, channel, credit, minimums) are
+**Context.** Sending an order is hard to reverse once the warehouse starts
+picking it. Most checks (location, channel, credit, minimums) are
 clear-cut. Free-text notes are not.
 **Decision.** Routing is deterministic rules. One AI step, the notes reader,
 turns free text into flags with a confidence score. A raised flag, or an
@@ -22,7 +22,7 @@ which the eval set (14) measures.
 ### 2. At most once: claim before sending, never retry a send automatically
 **Context.** October: the warehouse accepted an order, the log write that
 followed was rate-limited and failed, and the next run sent it again. The
-customer got two deliveries.
+warehouse received the order twice.
 **Decision.** Each order is claimed in the ledger (PENDING) before it is
 sent; if the claim fails, nothing is sent. No send is ever retried by the
 system. When the outcome is unclear, the order goes to CHECK and a person
@@ -46,13 +46,13 @@ duplicate risk).
 resend. Everything else goes to a person.
 
 ### 4. Deduplicate before the per-run cap
-**Context.** Go-live day: the cap of 10 orders per run was applied before
-deduplication. Already-sent orders used it up, so 7 of 17 orders were never
-looked at, and some arrived a day late.
+**Context.** The live build once applied its per-run cap before
+deduplication. Already-sent orders used it up, so new orders weren't looked
+at.
 **Decision.** Drop everything the ledger has handled first, then apply the
 cap, oldest first. The rest wait for the next run.
 **Consequences.** The cap only ever counts orders that need a decision. A
-test reproduces the go-live day.
+test reproduces it.
 
 ### 5. Ledger states: SENT or RETRY, never "resolved"
 **Context.** The live team already speaks in SENT and RETRY when clearing a
@@ -89,8 +89,9 @@ count, then decide what holds" is how a shadow run works (see
 production-path.md).
 
 ### 8. Poll more often near the cut-off
-**Context.** Customers are told 12:30. The warehouse accepts until 13:00. A
-hold at 12:20 matters far more than one at 09:00.
+**Context.** Customers are given a midday cut-off, and the warehouse accepts
+orders a little later (12:30 and 13:00 in the demo config). A hold just
+before the cut-off matters far more than one at 09:00.
 **Decision.** Every 15 minutes from 08:00 to 20:00, and every 5 from 11:00
 to 13:30. Lookback 48 hours, invoices older than 7 days ignored, cap 10. All
 in config.
@@ -130,8 +131,8 @@ notes and 3 runs. The threshold stays at 0.8.
 against the same set before it ships.
 
 ### 12. The resolver runs on its own schedule, around the clock
-**Context.** The live stale-order check only runs when a poll finds recent
-orders. An order stuck on Friday evening waits until Monday.
+**Context.** An order stuck on a Friday evening must not wait until Monday,
+whether or not any new orders arrive to trigger a run.
 **Decision.** Every 15 minutes, every day. A claim with no outcome after 30
 minutes becomes CHECK, and the team gets one alert per item per state.
 **Consequences.** The Friday case alerts within the hour. No repeat alerts

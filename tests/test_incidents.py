@@ -60,7 +60,7 @@ def mark_sent(ledger, sale):
 # ---------- the incidents ----------
 
 def test_1_cap_applies_after_dedup(gen, ledger):
-    """Go-live: 17 qualifying orders, 7 already sent, cap of 10 applied first.
+    """The live cap was applied before dedup. Here: 17 orders, 7 already sent, a cap of 10.
     7 of the 17 sat invisible. Now dedup runs first, so all 10 new ones go."""
     sales = [gen.make() for _ in range(17)]
     for sale in sales[:7]:
@@ -75,7 +75,7 @@ def test_1_cap_applies_after_dedup(gen, ledger):
 
 def test_2_accepted_but_ledger_write_failed_is_not_resent(gen, ledger, monkeypatch):
     """October: the warehouse accepted, the log write hit a 429, the next run
-    resent it, and the customer got two deliveries."""
+    resent it, and the warehouse received it twice."""
     sale = gen.make()
     stock, wh = MockStockSystem([sale]), warehouse()
     real_move = ledger.move

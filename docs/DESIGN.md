@@ -12,18 +12,17 @@ data, and is structured so the mocks can be replaced with real connectors.
 ## The problem
 Orders are created in a Cin7-style stock system and fulfilled by a
 third-party warehouse (Warehouse-3PL) through a Vision-style EDI API. The n8n
-integration, live since August 2026, removed double entry. Running it in
+integration, live since mid-August 2026, removed double entry. Running it in
 production exposed three kinds of problem:
 
-1. **Sending safely.** A duplicate delivery in October, a per-run cap that
-   hid orders on go-live day, and retries after unclear responses. See the
-   README for the full history.
+1. **Sending safely.** An order received twice by the warehouse in October,
+   and a per-run cap that hid orders. See the README for the history.
 2. **Judgement that lived in people's heads.** Credit holds, invoice-only
    sales, mixed pick locations, Shopify orders on warehouse stock, one-off
    delivery changes: all checked by hand, or not at all.
 3. **Uncertainty.** The warehouse confirms receipt only in its immediate
    response. When that's missing or unclear, nothing in the system knows
-   what happened, and the stale-order check only runs when new orders arrive.
+   what happened.
 
 ## Design principles
 - **Rules decide, AI assists.** Routing is deterministic. AI only reads

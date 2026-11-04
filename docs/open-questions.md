@@ -34,6 +34,8 @@ already caused one failure.
 | Question | Why it matters | Demo assumes |
 |---|---|---|
 | The live poll interval | It sets how quickly holds and failures surface | 15 minutes, 5 near the cut-off |
+| What cut-off are customers told, and what does the warehouse really accept? | Sets the queue's countdown and when polling speeds up | Customers told 12:30; warehouse accepts until 13:00 |
+| Whose Google Cloud project is it? | The proposed home for hosting | The client's |
 | Orders per weekday, and peak-day maximums | Sizes the per-run cap and the queue | About 15 a working day (inferred from the log) |
 | Minimum-order bands outside London and Scotland | The minimum rule needs them | A default of 36 bottles |
 | Does the order push need AI at all? | AI adds cost and another data processor | Off at go-live, measured in shadow (decision 16) |
@@ -42,7 +44,6 @@ already caused one failure.
 
 ## Answered during the build
 
-- **Cut-offs.** Customers are told 12:30; the warehouse accepts until 13:00.
 - **Final skips.** Only #NOVISION, credited and voided.
 - **Minimums.** Below the area band and no delivery-charge line.
 - **New customer.** No order sent for them before.

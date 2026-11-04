@@ -7,21 +7,20 @@ code of a live n8n integration for a wine importer. This version runs on
 mocks and synthetic data.
 
 ## What the live version does
-Every 15 minutes or so, n8n polls a Cin7-style stock system for invoiced
-sales and skips Shopify, Site-B and invoice-only (#NOVISION) sales. It
-checks a log so nothing is sent twice, builds EDI XML and sends it to the
-warehouse (Vision-style API), then logs the result as SENT, REJECTED or
-CHECK. Live since August 2026; it saves the Ops lead about 10 minutes a day.
+On a schedule, n8n polls a Cin7-style stock system for invoiced sales. It
+skips Shopify orders, orders for Site-B (by header and by pick location) and
+the warehouse's own account, and, since October, invoice-only sales marked
+#NOVISION. It checks a log so nothing is sent twice, builds EDI XML, sends it
+to the warehouse (Vision-style API) and emails alerts on failures. Live since
+mid-August 2026.
 
 ## What went wrong, and why
-| When | What happened | Cause |
-|---|---|---|
-| Before go-live | LIVE rejected XML that TEST had accepted | Quoting and case in the XML declaration |
-| From go-live | 7 of 17 orders never looked at on go-live day; on busy days, orders went missing or arrived a day late | The cap of 10 per run was applied before deduplication, so already-sent orders used it up |
-| After go-live | A Site-B stock order was sent to the warehouse | The header said warehouse; the lines were picked at Site-B |
-| October | A customer received the same order twice | The warehouse accepted it, the log write was rate-limited and failed, and the next run sent it again |
-| Near-misses | Resends after unclear responses; a hand-entered log row that didn't block a resend | Automatic retries; a truncated ID |
-| Ongoing | A stuck order on Friday evening isn't flagged until Monday | The stale check only runs when new orders arrive |
+| What happened | Cause |
+|---|---|
+| The warehouse's LIVE system rejected XML that its TEST system had accepted | Single quotes and the case of "utf-8" in the XML declaration |
+| Orders were missed by the poll | A per-run cap was applied before deduplication, so already-sent orders used it up |
+| A Site-B stock order was sent to the warehouse | The header said warehouse; the stock was picked at Site-B. Fixed by checking the pick location |
+| October: the warehouse received the same order twice | The send succeeded, the log write was rate-limited and failed, and the next run sent it again |
 
 Behind all of these: judgement that lived in the Ops lead's head (credit
 holds, mixed picks, one-off delivery changes), and a warehouse that only

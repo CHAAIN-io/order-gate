@@ -23,13 +23,13 @@ order ID. The full list is in [open-questions.md](open-questions.md).
 |---|---|---|
 | Stock system | An API client behind the existing interface. Map the real payload, including every fulfilment, into the sale model | A rate limit shared with two other integrations. Check it before shadow doubles the polling |
 | Warehouse | OAuth2 client credentials, the real endpoint, and the response parsing | TEST and LIVE behave differently. Validate against LIVE with a known test order. A schema version change is pending |
-| Notifier | Email from the client's own mailbox, through its Microsoft 365 tenant | Live alerts currently go out through a Gmail connection. Move them |
+| Notifier | Email from the client's own mailbox, through its Microsoft 365 tenant | Confirm which channel the live alerts use today, and move them |
 | Credit hold | Read the stock system's credit-hold flag once per run | Confirm it is in the API, on the sale or the customer |
 
 ## 3. Hosting
 
-The client already has a Google Cloud project, with billing attached. That
-gives the client ownership, which matters for handover.
+The client appears to have a Google Cloud project with billing; confirm whose
+it is. Hosting there gives the client ownership, which matters for handover.
 
 - **Run:** a container, triggered by Cloud Scheduler on the polling windows
   and on the resolver's 15-minute cycle (or one small always-on service).
