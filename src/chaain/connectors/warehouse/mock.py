@@ -80,9 +80,11 @@ class MockWarehouse(Warehouse):
         response_timeout_seconds: float = 60,
         lookup_enabled: bool = False,
         today: date | None = None,
+        planned: dict[str, Behaviour] | None = None,
     ) -> None:
         self.settings = settings
         self.script = list(script)  # answers used in order, then `default`
+        self.planned = dict(planned or {})  # doc ref -> answer, used once, ahead of the script
         self.default = default
         self.response_timeout_seconds = response_timeout_seconds
         self.lookup_enabled = lookup_enabled
@@ -95,7 +97,10 @@ class MockWarehouse(Warehouse):
 
     def send(self, order: PreparedOrder) -> SendResult:
         self.attempts.append(order.doc_ref)
-        behaviour = self.script.pop(0) if self.script else self.default
+        if order.doc_ref in self.planned:
+            behaviour = self.planned.pop(order.doc_ref)
+        else:
+            behaviour = self.script.pop(0) if self.script else self.default
 
         if behaviour.transport is Transport.CONNECT_FAILED:
             return SendResult(Transport.CONNECT_FAILED)
