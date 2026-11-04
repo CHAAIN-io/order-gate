@@ -1,9 +1,8 @@
 """The team queue as a command line: `make queue AS="Ops lead"`.
 
 The demo's stock system and warehouse are in-memory mocks, so this is one
-interactive session. It seeds a late morning's orders, runs the poll and
-the resolver once, then takes commands. Every action is logged under the
-name given with --as.
+interactive session. It plays the `make demo` day (Stage 3.2, D4), then
+takes commands. Every action is logged under the name given with --as.
 
 The notes reader (the AI step) is off here so the queue runs offline and
 free; the holds come from the rules.
@@ -14,82 +13,22 @@ from __future__ import annotations
 import argparse
 import cmd
 import shlex
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Callable
 from zoneinfo import ZoneInfo
 
 from chaain.connectors.notifier.interface import Notifier
-from chaain.connectors.notifier.mock import ConsoleNotifier
-from chaain.connectors.stock_system.generator import CATALOGUE, SaleGenerator
-from chaain.connectors.stock_system.mock import MockStockSystem
-from chaain.connectors.warehouse.mock import Behaviour, MockWarehouse
-from chaain.core.config import load_rules, load_settings
-from chaain.core.decision import Decision
-from chaain.core.ledger import Ledger
-from chaain.core.ledger.sqlite import SqliteLedger
-from chaain.core.models import Sale
-from chaain.workflows.order_push.gate import GateRules, Reference, gate_for
+from chaain.workflows.order_push.demo import Workspace, play
 from chaain.workflows.order_push.queue import (
     SECTIONS, Cutoffs, Item, QueueError, approve, build_queue, mark_received, mark_retry, reject,
 )
-from chaain.workflows.order_push.resolver import ResolverSettings, resolve
-from chaain.workflows.order_push.run import RunSettings, run_once
-
-UK = ZoneInfo("Europe/London")
-DEMO_START = datetime(2026, 11, 4, 11, 40, tzinfo=UK)  # a Wednesday, 50 minutes to the cut-off
+from chaain.workflows.order_push.resolver import resolve
+from chaain.workflows.order_push.run import run_once
 
 
-@dataclass
-class Workspace:
-    ledger: Ledger
-    stock: MockStockSystem
-    warehouse: MockWarehouse
-    gate: Callable[[Sale], Decision]
-    notifier: Notifier
-    cutoffs: Cutoffs
-    resolver: ResolverSettings
-    run: RunSettings
-    clock: Callable[[], datetime]
-
-
-def demo_workspace(notifier: Notifier | None = None, start: datetime = DEMO_START) -> Workspace:
-    """A late morning: some orders sent, some held, one refused, one that
-    timed out, and one claimed 40 minutes ago with no outcome."""
-    started = datetime.now(timezone.utc)
-    now = [start - timedelta(minutes=40)]  # the clock moves with real time once seeded
-
-    def clock() -> datetime:
-        return now[0] if now[0] < start else start + (datetime.now(timezone.utc) - started)
-
-    settings = load_settings()
-    gen = SaleGenerator(seed=3, now=start)
-    ledger = SqliteLedger(clock=clock)
-    stock = MockStockSystem()
-    wh = MockWarehouse(today=start.date(), script=[Behaviour.timeout(received=True), Behaviour.reject()])
-    rules = GateRules.from_config(load_rules())
-    newcomer = gen.make("new_customer")
-    ref = Reference(
-        warehouse_stock={code: 1000 for code, *_ in CATALOGUE},
-        known_customers=frozenset(c.id for c in gen.customers),
-    )
-    gate = gate_for(ref, rules, wh.prepare)
-
-    # 40 minutes ago: a run claimed this order, then died before sending.
-    stuck = gen.make()
-    stock.add(stuck)
-    ledger.open(stuck.so_number, stuck.id, stuck.customer_id, "first seen in poll")
-    ledger.claim(stuck.so_number, "claimed for sending")
-    now[0] = start
-
-    stock.add(gen.make(), gen.make(), gen.make(), gen.make("mixed_pick"), newcomer, gen.make("missing_town"))
-    ws = Workspace(
-        ledger, stock, wh, gate, notifier or ConsoleNotifier(), Cutoffs.from_config(settings),
-        ResolverSettings.from_config(settings), RunSettings.from_config(settings["scheduler"]), clock,
-    )
-    run_once(clock(), stock, ledger, wh, gate, ws.run)
-    resolve(clock(), ledger, wh, ws.notifier, ws.resolver)
-    return ws
+def demo_workspace(notifier: Notifier | None = None) -> Workspace:
+    """The `make demo` day, played quietly, ready to act on."""
+    return play(out=lambda line: None, notifier=notifier)
 
 
 # ---------- rendering ----------

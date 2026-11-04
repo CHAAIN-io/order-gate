@@ -16,16 +16,18 @@ def held_so(shell, reason_part):
     return next(i.so_number for i in shell._items() if i.state is State.HELD and reason_part in i.reasons[0])
 
 
-def test_the_demo_morning_has_every_kind_of_item_and_alerts_once(shell):
-    states = {i.state for i in shell._items()}
-    assert states == {State.CHECK, State.HELD, State.REJECTED}
-    assert len(shell.ws.notifier.sent) == 1
+def test_the_demo_day_has_every_kind_of_item_and_each_was_alerted_once(shell):
+    items = shell._items()
+    assert {i.state for i in items} == {State.CHECK, State.HELD, State.REJECTED}
+    alerted = [line.split()[1] for _, body in shell.ws.notifier.sent for line in body.splitlines()
+               if line.startswith("- ")]
+    assert sorted(alerted) == sorted(i.so_number for i in items)
 
 
 def test_list_shows_the_cut_off_and_every_section(shell, capsys):
     shell.onecmd("list")
     out = capsys.readouterr().out
-    assert "to the 12:30 cut-off" in out
+    assert "past today's 13:00 warehouse cut-off" in out  # the demo day ends at 13:30
     for title in ("May or may not be at the warehouse", "Held for a decision", "Refused by the warehouse"):
         assert title in out
 
