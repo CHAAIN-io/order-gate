@@ -119,11 +119,12 @@ class SaleGenerator:
 
     # ---------- public ----------
 
-    def make(self, scenario: str = "standard", **overrides) -> Sale:
-        """One sale for a named scenario, with any fields overridden."""
+    def make(self, scenario: str = "standard", customer: Customer | None = None, **overrides) -> Sale:
+        """One sale for a named scenario, for a random customer unless one is
+        given, with any fields overridden."""
         if scenario not in SCENARIOS:
             raise KeyError(f"unknown scenario {scenario!r}; known: {', '.join(sorted(SCENARIOS))}")
-        sale = SCENARIOS[scenario].build(self, self._base())
+        sale = SCENARIOS[scenario].build(self, self._base(customer))
         return replace(sale, **overrides) if overrides else sale
 
     def day(self, n: int = 20, mix: dict[str, int] | None = None) -> list[Sale]:

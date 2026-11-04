@@ -33,7 +33,7 @@ Nothing here is production yet.
 | Resolver | `workflows/order_push/resolver.py` | Finds stuck orders around the clock and alerts once | Generic | Tested |
 | Team queue | `workflows/order_push/queue.py` | What needs a person, and the actions: approve, reject, received, retry | Generic | Tested |
 | Queue command line | `workflows/order_push/queue_cli.py` | `make queue` | Demo stand-in for the real review interface | Demo |
-| Demo day | `workflows/order_push/demo.py` | `make demo`: 20 scripted orders through both cut-offs | Demo | Demo, with a test that every order ends where expected |
+| Demo day | `workflows/order_push/demo.py` | `make demo`: 21 scripted orders through both cut-offs | Demo | Demo, with a test that every order ends where expected |
 
 ## What another client or workflow would reuse
 

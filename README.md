@@ -47,7 +47,7 @@ Needs Python 3.12. Everything runs offline against mocks.
 ```
 make setup
 make test                    # 300+ tests, no network
-make demo                    # a simulated Wednesday: 20 orders, then the team queue
+make demo                    # a simulated Wednesday: 21 orders, then the team queue
 make queue AS="Ops lead"     # act on that queue: list, show, approve, reject, retry
 make eval-score              # re-score the saved notes eval, no API call
 make eval                    # re-run it against the model (needs ANTHROPIC_API_KEY in .env)

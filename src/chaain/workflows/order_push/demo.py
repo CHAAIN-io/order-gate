@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 
 from chaain.connectors.notifier.interface import Notifier
 from chaain.connectors.notifier.mock import MemoryNotifier
-from chaain.connectors.stock_system.generator import SaleGenerator
+from chaain.connectors.stock_system.generator import Customer, SaleGenerator
 from chaain.connectors.stock_system.mock import MockStockSystem
 from chaain.connectors.warehouse.mock import Behaviour, MockWarehouse
 from chaain.core.config import load_rules, load_settings
@@ -56,6 +56,7 @@ class Order:
     story: str  # one line for the walkthrough
     note_case: str | None = None  # an eval case whose note this order carries
     warehouse: Behaviour | None = None  # what the warehouse does with it, if not accept
+    credit_hold: bool = False  # the Finance lead has set the customer's credit-hold flag
 
 
 @dataclass(frozen=True)
@@ -89,6 +90,8 @@ ORDERS = (
     Order("12:20", "standard", "a one-off delivery address in the note", note_case="other-site-this-week"),
     Order("12:40", "standard", "a plain order after the customer cut-off"),
     Order("13:10", "standard", "a plain order after the warehouse cut-off"),
+    # Added last so the SO numbers above stay as they are in the walkthrough.
+    Order("11:20", "standard", "a customer the Finance lead has put on credit hold", credit_hold=True),
 )
 CHANGES = (
     Change("10:40", 4, "invoiced", SaleStatus.INVOICED),
@@ -120,11 +123,18 @@ def play(out: Callable[[str], None] = print, notifier: Notifier | None = None) -
 
     gen = SaleGenerator(seed=SEED, now=start)
     notes = {c.id: c.note for c in load_cases(CASES)}
-    sales = [_sale(gen, o, notes) for o in ORDERS]
+    sales: list[Sale] = []
+    for o in ORDERS:
+        # A credit hold applies to every order of that customer, so give it
+        # a customer with no other order today, or they'd be held too.
+        others = {s.customer_id for s in sales}
+        customer = next(c for c in gen.customers if c.id not in others) if o.credit_hold else None
+        sales.append(_sale(gen, o, notes, customer))
     warehouse = MockWarehouse(
         today=DAY, planned={s.so_number: o.warehouse for s, o in zip(sales, ORDERS) if o.warehouse},
     )
     ref = Reference(
+        credit_hold_customers=frozenset(s.customer_id for s, o in zip(sales, ORDERS) if o.credit_hold),
         warehouse_stock={line.sku: 1000 for sale in sales for line in sale.lines},  # stock isn't today's story
         known_customers=frozenset(c.id for c in gen.customers),
     )
@@ -193,10 +203,10 @@ def _local(hhmm: str) -> datetime:
     return datetime.combine(DAY, time.fromisoformat(hhmm), UK)
 
 
-def _sale(gen: SaleGenerator, order: Order, notes: dict[str, str]) -> Sale:
+def _sale(gen: SaleGenerator, order: Order, notes: dict[str, str], customer: Customer | None = None) -> Sale:
     at = _local(order.at)
     gen.now = at
-    sale = gen.make(order.scenario)
+    sale = gen.make(order.scenario, customer)
     if order.note_case:
         sale = replace(sale, note=notes[order.note_case])
     if order.scenario == "accented_text":

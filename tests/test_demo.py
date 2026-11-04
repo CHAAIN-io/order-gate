@@ -17,6 +17,7 @@ EXPECTED = (
     State.HELD, State.SKIPPED, State.REJECTED, State.HELD, None,
     State.SENT, State.HELD, State.CHECK, State.SENT, State.SKIPPED,
     State.HELD, State.HELD, State.HELD, State.SENT, State.SENT,
+    State.HELD,  # credit hold, added last
 )
 
 
@@ -40,10 +41,18 @@ def test_the_day_is_the_same_every_time(day):
 
 def test_every_order_ends_where_the_story_says(day):
     ws, _ = day
-    assert len(ORDERS) == len(EXPECTED) == 20
+    assert len(ORDERS) == len(EXPECTED) == 21
     for i, expected in enumerate(EXPECTED):
         entry = ws.ledger.find(so_number=so(i))
         assert (entry.state if entry else None) is expected, f"{so(i)}: {ORDERS[i].story}"
+
+
+def test_the_credit_hold_holds_only_that_customers_order(day):
+    ws, _ = day
+    entry = ws.ledger.find(so_number=so(20))
+    assert entry.state is State.HELD and "credit hold" in entry.reason
+    held_for_credit = [e for e in ws.ledger.in_state(State.HELD) if "credit hold" in e.reason]
+    assert [e.so_number for e in held_for_credit] == [so(20)]
 
 
 def test_nothing_reaches_the_warehouse_twice(day):
