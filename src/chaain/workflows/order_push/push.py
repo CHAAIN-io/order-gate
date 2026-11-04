@@ -117,7 +117,7 @@ def push(
         ledger.move(so, TARGET[outcome], reason, details=details)
         return PushResult(so, True, outcome, TARGET[outcome], True, stop, reason)
     except Exception as first:
-        # We know what the warehouse said but couldn't record it: the 14 Oct case.
+        # We know what the warehouse said but couldn't record it: the October duplicate.
         # CHECK says "a person must confirm", which is true whatever happened.
         fallback = f"{reason}; recording that failed ({first}), so a person must confirm"
         try:

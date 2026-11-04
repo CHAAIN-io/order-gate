@@ -1,104 +1,126 @@
 # Order gate: design
 
 ## What this is
-A small system that decides which wholesale orders can go from a stock system to
-a third-party warehouse automatically, which need a person to check first, and
-what to do when we can't tell whether the warehouse received an order.
+A small system that decides which wholesale orders go from a stock system to
+a third-party warehouse automatically, which need a person to check first,
+and what to do when nobody can tell whether the warehouse received an order.
 
-It's a rebuild in code of a live integration I built in n8n for a wine importer.
-This version runs against mock systems and synthetic data. It is structured so
-the mocks can be replaced with real connectors.
+It is a rebuild in code of a live integration built in n8n for a wine
+importer (Client-Wine). This version runs against mock systems and synthetic
+data, and is structured so the mocks can be replaced with real connectors.
 
 ## The problem
-The importer's orders are created in a Cin7-style stock system and fulfilled by
-a third-party warehouse through a Vision-style EDI API. The first version of the
-integration, built in n8n, removed manual double entry. Running it in production
-exposed three kinds of problem:
+Orders are created in a Cin7-style stock system and fulfilled by a
+third-party warehouse (Warehouse-3PL) through a Vision-style EDI API. The n8n
+integration, live since August 2026, removed double entry. Running it in
+production exposed three kinds of problem:
 
-1. **Sending safely.** An order was delivered twice when the warehouse accepted
-   it but our own log write failed, and the next run sent it again. Other issues
-   came from a per-run cap applied before deduplication, and from retries after
-   ambiguous responses.
-2. **Judgement that lived in people's heads.** Credit holds, reserved stock,
-   invoice-only sales, mixed pick locations and vintage changes were all checked
-   by hand, or not at all.
-3. **Uncertainty.** The warehouse only confirms receipt in its immediate
-   response. When that response is missing or unclear, nothing in the system
-   knows what happened.
+1. **Sending safely.** A duplicate delivery in October, a per-run cap that
+   hid orders on go-live day, and retries after unclear responses. See the
+   README for the full history.
+2. **Judgement that lived in people's heads.** Credit holds, invoice-only
+   sales, mixed pick locations, Shopify orders on warehouse stock, one-off
+   delivery changes: all checked by hand, or not at all.
+3. **Uncertainty.** The warehouse confirms receipt only in its immediate
+   response. When that's missing or unclear, nothing in the system knows
+   what happened, and the stale-order check only runs when new orders arrive.
 
 ## Design principles
-- **Rules decide, AI assists.** Routing is deterministic. AI only reads free-text
-  notes and turns them into structured flags with a confidence score. It never
-  decides to send an order.
-- **At most once, then ask.** Every order is claimed in the ledger before it's
-  sent, and is never retried automatically. When the outcome is unclear, a
-  person is asked, with the evidence.
-- **Every decision has a reason.** Each state change is recorded with why it
-  happened, so the team can trust and audit the system.
-- **Built to be replaced in parts.** Core logic talks to interfaces, not to
-  specific systems. Storage, connectors and the AI provider can each be swapped.
+- **Rules decide, AI assists.** Routing is deterministic. AI only reads
+  free-text notes, and can only hold an order, never send one.
+- **At most once, then ask.** Every order is claimed in the ledger before
+  it's sent, and is never retried automatically. When the outcome is
+  unclear, a person is asked, with the evidence.
+- **Every decision has a reason.** Each state change records why, and who.
+- **Built to be replaced in parts.** Core logic talks to interfaces. Storage,
+  connectors and the AI provider can each be swapped.
+- **Client values in config.** Rules and thresholds live in
+  `configs/<client>/`; logic lives in code, with tests.
 
 ## How it works
-1. **Poll** the stock system for invoiced orders changed within a lookback
-   window. Deduplicate against the ledger before applying any per-run cap.
-2. **Gate** each order with rules, plus flags from the notes reader:
-   - SKIP: not for the warehouse (wrong channel, wrong site, invoice-only).
-   - HOLD: needs a person (credit hold, mixed locations, below minimum,
-     vintage or stock issue, reserved stock, new customer, uncertain notes).
-   - AUTO: passes every check.
-3. **Claim** the order in the ledger (PENDING) before sending. If the claim
-   fails, don't send.
-4. **Send** once. Accepted orders become SENT, rejected ones REJECTED, and
-   anything unclear becomes CHECK.
-5. **Resolve** CHECK and stale PENDING items on a separate schedule, by looking
-   the order up where the warehouse supports it, or by asking the team.
-6. **Review**: the team approves, rejects or confirms held and unclear items.
-   Every action is logged with who did it and when.
+1. **Poll** the stock system on a timetable: every 15 minutes from 08:00 to
+   20:00, and every 5 from 11:00 to 13:30, the run-up to the cut-off. Take
+   invoiced sales changed in the last 48 hours.
+2. **Deduplicate** against the ledger, *then* apply the per-run cap of 10.
+   Orders cleared for retry are fetched even if they've left the window.
+3. **Gate** each order:
+   - SKIP: not for the warehouse. Every line picked at Site-B, an internal
+     customer, #NOVISION, credited, voided, or not invoiced yet.
+   - HOLD: a person decides. Credit hold, stock shortfall, mixed locations,
+     Shopify on warehouse stock, data the warehouse would refuse, a new
+     customer, or a note the notes reader flags. Every reason is listed.
+   - AUTO: passes every check. Vintage changes, reserved stock and minimums
+     are reported alongside, not held, until a shadow run shows they should be.
+4. **Claim** the order (PENDING). If the claim fails, don't send.
+5. **Send** once. The answer decides the state; anything unclear is CHECK.
+6. **Resolve**, separately, every 15 minutes around the clock: a claim with
+   no outcome after 30 minutes becomes CHECK. Where the warehouse can be
+   asked, "found" confirms it as SENT. Anything newly needing a person goes
+   into one alert.
+7. **Review** in the team queue: unknowns first, then holds, then refusals.
+   Approve, reject, received or retry, each logged with a name. Approving a
+   hold that has changed since puts it through the gate again first.
 
 ## Order states
 ```
-CANDIDATE -> SKIPPED
-          -> HELD    -> (approved) PENDING
-          -> PENDING -> SENT
-                     -> REJECTED
-                     -> CHECK -> RESOLVED (confirmed sent, or ready to retry)
+(first seen) ─► CANDIDATE ─► SKIPPED          (final for #NOVISION,
+                    │                          credited, voided)
+                    ├──────► HELD ──approve──► PENDING
+                    │          └──reject───► SKIPPED (final)
+                    └─AUTO + claim──► PENDING
+                                        ├─ accepted ───────► SENT (final)
+                                        ├─ refused ────────► REJECTED ─fixed─► RETRY
+                                        ├─ never left us ──► RETRY
+                                        └─ unclear/stale ──► CHECK
+                                                               ├─ it arrived ─► SENT
+                                                               └─ it didn't ──► RETRY
+RETRY and non-final SKIPPED go through the gate again.
 ```
+There is no way back to PENDING from SENT or CHECK. That is what keeps it
+at most once: nothing reaches the warehouse twice unless a person first says
+it didn't arrive.
 
 ## Where AI is and isn't used
 | Step | Approach | Why |
 | --- | --- | --- |
-| Eligibility and exclusions | Rules | Clear, testable, no ambiguity |
-| Credit, stock, minimums | Rules | Consequential and auditable |
-| Free-text notes and instructions | AI, with confidence scores | Unstructured language; low confidence goes to a person |
-| Whether to send | Rules plus people | Hard to reverse once the warehouse starts picking |
+| Eligibility and exclusions | Rules | Clear, testable |
+| Credit, stock, locations, minimums | Rules | Consequential and auditable |
+| Free-text notes | AI, with confidence; raised or unsure flags hold | Unstructured language |
+| Whether to send | Rules, plus people for holds | Hard to reverse once picking starts |
 | Unclear delivery | People | Guessing risks a duplicate delivery |
 
-The notes reader is measured against a hand-checked eval set, favouring recall
-on risky flags: a wrongly held order costs a minute, a wrongly sent one costs a
-delivery.
+The notes reader is measured on 26 synthetic notes, 3 runs each, with
+results saved and re-scored offline. notes-v2: no missed holds and no wrong
+holds. Missing a risky note costs a delivery, and holding a safe one costs a
+minute, so the threshold is chosen for no misses first. In production, AI
+starts in report-only mode and holds only if the shadow run shows it's worth
+it (decision 16).
 
 ## Structure
 ```
 src/chaain/
-  core/          ledger, state machine, rules engine, review queue
-  llm/           AI provider adapter (provider, model and key set per client)
-  connectors/    stock system and warehouse interfaces, with mocks
-  workflows/     order_push (further workflows can sit alongside)
-configs/         client-specific rules and settings
-evals/           eval sets for the AI step
-tests/           one test per real incident or near-miss
-docs/            decisions, components, open questions, production path
+  core/            ledger (repository, SQLite, states), models, decisions, config
+  llm/             model provider interface: Anthropic, fake, replay
+  connectors/
+    stock_system/  interface, mock, synthetic data generator
+    warehouse/     interface, EDI XML builder, mock
+    notifier/      interface, mocks
+  workflows/
+    order_push/    scheduler, poll, gate, push, notes reader and eval,
+                   resolver, team queue and its command line, demo day
+configs/demo/      rules.yaml, settings.yaml
+evals/notes/       eval cases and saved results
+tests/             incident tests, one per real failure or near-miss
+docs/              decisions, components, open questions, production path
 ```
 
-## Running it
-See README.md. `make test`, `make eval` and `make demo`.
-
 ## Status
-Demo: mock systems, synthetic data. See `docs/production-path.md` for what a
-production version would need, and `docs/open-questions.md` for what's still
+A demo. Mock systems and synthetic data. See
+[production-path.md](production-path.md) for what running it for real
+involves, and [open-questions.md](open-questions.md) for what is still
 unknown about the real systems.
 
 ## How it was built
-Designed and directed by me. Much of the code was written with Claude Code,
-working from a written brief, with each design decision reviewed and recorded
-in `docs/decisions.md`.
+Built from a written brief. Each design decision was reviewed before it was
+implemented, and is recorded in [decisions.md](decisions.md). Much of the
+code was written with Claude Code.
