@@ -75,7 +75,7 @@ def test_1_cap_applies_after_dedup(gen, ledger):
 
 def test_2_accepted_but_ledger_write_failed_is_not_resent(gen, ledger, monkeypatch):
     """October: the warehouse accepted, the log write hit a 429, the next run
-    resent it, and the warehouse received it twice."""
+    resent it, and the customer got two deliveries."""
     sale = gen.make()
     stock, wh = MockStockSystem([sale]), warehouse()
     real_move = ledger.move

@@ -7,9 +7,8 @@ project would involve.
 
 ## 1. Close the unknowns first
 
-A 20-minute call with the Ops lead and the Finance lead settles the three
+A 20-minute call with the Ops lead and the Finance lead settles the two
 questions that change the design most:
-- Are warehouse orders still drafts, or confirmed on arrival?
 - What form is the credit-hold list in, and would the Finance lead set the
   flag in the stock system themselves?
 - Can the integration write to the sale note?

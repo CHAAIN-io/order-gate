@@ -15,7 +15,7 @@ third-party warehouse (Warehouse-3PL) through a Vision-style EDI API. The n8n
 integration, live since mid-August 2026, removed double entry. Running it in
 production exposed three kinds of problem:
 
-1. **Sending safely.** An order received twice by the warehouse in October,
+1. **Sending safely.** A customer received the same order twice in October,
    and a per-run cap that hid orders. See the README for the history.
 2. **Judgement that lived in people's heads.** Credit holds, invoice-only
    sales, mixed pick locations, Shopify orders on warehouse stock, one-off

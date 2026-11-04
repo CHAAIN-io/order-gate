@@ -12,8 +12,7 @@ already caused one failure.
 | Can an order be looked up by doc ref? | Would let the resolver confirm unclear sends without a person (decision 13) | Lookup off. The code path exists and is tested |
 | Is there any acknowledgement after the HTTP response, or a despatch confirmation? | Today a missing response leaves nothing to check against | No. The immediate response is all there is |
 | Does a 200 include the warehouse's own order ID? | It would be the strongest proof of receipt, and could be stored on SENT | Not used |
-| Are orders confirmed and picked on arrival, or do they land as drafts? | With drafts, a person already reviews every order, so a hold queue on top would duplicate that work. Without drafts, the gate's holds are the only safety net | Confirmed on arrival. Holds are the only safety net |
-| Where do one-off delivery changes go? | Without drafts, emailed changes ("this week only, deliver to...") have nowhere to be applied before picking | Held for a person by the notes reader |
+| Where do one-off delivery changes go? | Orders are confirmed on arrival, so emailed changes ("this week only, deliver to...") have nowhere to be applied before picking | Held for a person by the notes reader |
 | What happens to orders with no delivery window? | One account says they're deprioritised to the afternoon; another says the warehouse books deliveries directly | The default window from config is sent |
 | What are the real format limits? | Instruction length (120), lines per order (50) and the town rule are taken from the spec as understood | As stated, in the connector |
 | Is a schema version change due? | A format change mid-cutover would mix two risks | No change |
@@ -34,7 +33,6 @@ already caused one failure.
 | Question | Why it matters | Demo assumes |
 |---|---|---|
 | The live poll interval | It sets how quickly holds and failures surface | 15 minutes, 5 near the cut-off |
-| What cut-off are customers told, and what does the warehouse really accept? | Sets the queue's countdown and when polling speeds up | Customers told 12:30; warehouse accepts until 13:00 |
 | Whose Google Cloud project is it? | The proposed home for hosting | The client's |
 | Orders per weekday, and peak-day maximums | Sizes the per-run cap and the queue | About 15 a working day (inferred from the log) |
 | Minimum-order bands outside London and Scotland | The minimum rule needs them | A default of 36 bottles |
@@ -44,6 +42,9 @@ already caused one failure.
 
 ## Answered during the build
 
+- **Drafts.** Orders are confirmed and picked on arrival; they have never
+  been sent as drafts. The gate's holds are the only safety net.
+- **Cut-offs.** Customers are told 12:30; the warehouse accepts until 13:00.
 - **Final skips.** Only #NOVISION, credited and voided.
 - **Minimums.** Below the area band and no delivery-charge line.
 - **New customer.** No order sent for them before.

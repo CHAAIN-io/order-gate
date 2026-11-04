@@ -12,7 +12,7 @@ skips Shopify orders, orders for Site-B (by header and by pick location) and
 the warehouse's own account, and, since October, invoice-only sales marked
 #NOVISION. It checks a log so nothing is sent twice, builds EDI XML, sends it
 to the warehouse (Vision-style API) and emails alerts on failures. Live since
-mid-August 2026.
+mid-August 2026; the client's team reports it saves about 20 minutes a day.
 
 ## What went wrong, and why
 | What happened | Cause |
@@ -20,7 +20,7 @@ mid-August 2026.
 | The warehouse's LIVE system rejected XML that its TEST system had accepted | Single quotes and the case of "utf-8" in the XML declaration |
 | Orders were missed by the poll | A per-run cap was applied before deduplication, so already-sent orders used it up |
 | A Site-B stock order was sent to the warehouse | The header said warehouse; the stock was picked at Site-B. Fixed by checking the pick location |
-| October: the warehouse received the same order twice | The send succeeded, the log write was rate-limited and failed, and the next run sent it again |
+| October: a customer received the same order twice | The send succeeded, the log write was rate-limited and failed, and the next run sent it again |
 
 Behind all of these: judgement that lived in the Ops lead's head (credit
 holds, mixed picks, one-off delivery changes), and a warehouse that only
@@ -55,7 +55,7 @@ make eval                    # re-run it against the model (needs ANTHROPIC_API_
 
 ## Known limitations
 - Mocks carry assumptions. The warehouse's real behaviour (lookup by doc
-  ref, drafts or auto-confirm, format limits) is unconfirmed:
+  ref, an asynchronous acknowledgement, format limits) is unconfirmed:
   [open-questions.md](docs/open-questions.md).
 - No real connectors, hosting, sign-in or monitoring yet:
   [production-path.md](docs/production-path.md).

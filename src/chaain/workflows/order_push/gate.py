@@ -10,9 +10,8 @@ all the reasons at once, in the order they should act on them:
 credit (the Finance lead), stock and vintage (the customer may need telling),
 locations, data fixes in the stock system, then the customer and the notes.
 
-The demo assumes AUTO orders are confirmed and picked on arrival, with no
-draft step to catch a mistake (an open question). A HOLD is then the only
-safety net, which is why each rule's
+AUTO orders are confirmed and picked on arrival; there is no draft step to
+catch a mistake. A HOLD is the only safety net, which is why each rule's
 mode (hold / report / off) is set deliberately in config.
 """
 

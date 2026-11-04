@@ -8,8 +8,8 @@ history.
 ---
 
 ### 1. Rules decide; AI only reads notes, and can only hold
-**Context.** Sending an order is hard to reverse once the warehouse starts
-picking it. Most checks (location, channel, credit, minimums) are
+**Context.** Sending an order is hard to reverse: the warehouse confirms and
+picks it on arrival, with no draft step. Most checks (location, channel, credit, minimums) are
 clear-cut. Free-text notes are not.
 **Decision.** Routing is deterministic rules. One AI step, the notes reader,
 turns free text into flags with a confidence score. A raised flag, or an
@@ -22,7 +22,7 @@ which the eval set (14) measures.
 ### 2. At most once: claim before sending, never retry a send automatically
 **Context.** October: the warehouse accepted an order, the log write that
 followed was rate-limited and failed, and the next run sent it again. The
-warehouse received the order twice.
+customer got two deliveries.
 **Decision.** Each order is claimed in the ledger (PENDING) before it is
 sent; if the claim fails, nothing is sent. No send is ever retried by the
 system. When the outcome is unclear, the order goes to CHECK and a person
@@ -89,9 +89,8 @@ count, then decide what holds" is how a shadow run works (see
 production-path.md).
 
 ### 8. Poll more often near the cut-off
-**Context.** Customers are given a midday cut-off, and the warehouse accepts
-orders a little later (12:30 and 13:00 in the demo config). A hold just
-before the cut-off matters far more than one at 09:00.
+**Context.** Customers are told 12:30. The warehouse accepts until 13:00. A
+hold at 12:20 matters far more than one at 09:00.
 **Decision.** Every 15 minutes from 08:00 to 20:00, and every 5 from 11:00
 to 13:30. Lookback 48 hours, invoices older than 7 days ignored, cap 10. All
 in config.
